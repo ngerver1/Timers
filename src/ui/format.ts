@@ -1,6 +1,7 @@
 // Display formatting. Uses the phone's locale (en-AU gives "7:45 am").
 import { ceilMinute, MINUTE } from '../engine/time';
 import type { Task } from '../engine/types';
+import { features } from '../features';
 
 const clockFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 const dayFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
@@ -54,9 +55,11 @@ export function timer(ms: number): string {
   return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 }
 
-/** "3 min" or "2 min + 4 min wait". */
+/** "3 min", or "2 min + 4 min wait" once waits are switched on. */
 export function taskLength(task: Pick<Task, 'handsOnSec' | 'waitSec'>): string {
-  return task.waitSec > 0 ? `${duration(task.handsOnSec)} + ${duration(task.waitSec)} wait` : duration(task.handsOnSec);
+  return features.waits && task.waitSec > 0
+    ? `${duration(task.handsOnSec)} + ${duration(task.waitSec)} wait`
+    : duration(task.handsOnSec);
 }
 
 /** Estimate vs leave-by, both to the whole minute (the estimate rounded up). */
@@ -65,6 +68,14 @@ export function slack(leaveBy: number, outAt: number): { text: string; tone: 'ah
   if (diff > 0) return { text: `${duration(diff * 60)} spare`, tone: 'ahead' };
   if (diff < 0) return { text: `${duration(-diff * 60)} behind`, tone: 'behind' };
   return { text: 'Right on time', tone: 'even' };
+}
+
+/** The estimate against the plan at Start: "+3 min vs plan", "−2 min vs plan" or "On plan". */
+export function drift(outAt: number, planned: number): { text: string; tone: 'ahead' | 'even' | 'behind' } {
+  const diff = Math.round((ceilMinute(outAt) - ceilMinute(planned)) / MINUTE);
+  if (diff > 0) return { text: `+${duration(diff * 60)} vs plan`, tone: 'behind' };
+  if (diff < 0) return { text: `−${duration(-diff * 60)} vs plan`, tone: 'ahead' };
+  return { text: 'On plan', tone: 'even' };
 }
 
 /** For finished mornings: "4 min early", "3 min late", "on time". */

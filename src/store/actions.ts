@@ -3,6 +3,7 @@ import { activeTasks, closeOver } from '../engine/routine';
 import { lastUndoable } from '../engine/run';
 import { addDays, dateKey, upcomingTime } from '../engine/time';
 import type { Id, Routine, Run, RunEvent, Task } from '../engine/types';
+import { forSchedule } from '../features';
 import { newId, type Plan, type StoreData } from './schema';
 import { update } from './store';
 
@@ -88,7 +89,7 @@ export function startRun(optionalOn: Iterable<Id>, leaveBy: string | undefined, 
       id: newId(),
       routineId: routine.id,
       date: dateKey(now),
-      tasks: activeTasks(routine.tasks, on),
+      tasks: forSchedule(activeTasks(routine.tasks, on)),
       optionalOn: [...on],
       leaveBy: leaveBy ? upcomingTime(leaveBy, now) : undefined,
       startedAt: now,

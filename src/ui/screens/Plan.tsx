@@ -3,6 +3,7 @@ import { getUpTime, routineLength } from '../../engine/plan';
 import { activeTasks, closeOver } from '../../engine/routine';
 import { atTime, dateKey, nextMorning } from '../../engine/time';
 import { activeRoutine, deletePlan, planFor, savePlan } from '../../store/actions';
+import { forSchedule } from '../../features';
 import type { Plan } from '../../store/schema';
 import { useData } from '../../store/store';
 import { BigClock, OptionalPicker, Stepper, TimeField } from '../components';
@@ -21,9 +22,10 @@ export function PlanScreen() {
     bufferMin: data.settings.bufferMin,
   };
   const on = closeOver(routine.tasks, plan.optionalOn);
-  const length = routineLength(activeTasks(routine.tasks, on));
+  const tasks = forSchedule(activeTasks(routine.tasks, on));
+  const length = routineLength(tasks);
   const leaveAt = plan.leaveBy ? atTime(date, plan.leaveBy) : undefined;
-  const getUp = leaveAt !== undefined ? getUpTime(activeTasks(routine.tasks, on), leaveAt, plan.bufferMin) : undefined;
+  const getUp = leaveAt !== undefined ? getUpTime(tasks, leaveAt, plan.bufferMin) : undefined;
   // Every change saves, so the Start screen on that morning picks it up.
   const save = (change: Partial<Plan>) =>
     savePlan({ ...plan, optionalOn: [...on], ...change, date, routineId: routine.id });

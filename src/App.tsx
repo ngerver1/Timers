@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { activeRun } from './store/actions';
-import { requestPersistence, storageStatus, useData } from './store/store';
-import { Icon, type IconName } from './ui/components';
+import { requestPersistence, useData } from './store/store';
+import { Icon, StorageBanners, type IconName } from './ui/components';
 import { HistoryScreen } from './ui/screens/History';
 import { PlanScreen } from './ui/screens/Plan';
 import { SettingsScreen } from './ui/screens/Settings';
@@ -29,7 +29,6 @@ export function App() {
   const [tab, setTab] = useState<Tab>(tabFromHash);
   const update = useAppUpdate();
   const running = activeRun(data) !== undefined;
-  const storage = storageStatus();
 
   useEffect(() => {
     void requestPersistence();
@@ -44,12 +43,8 @@ export function App() {
   return (
     <div className="app">
       <main className="screen">
-        {storage.saveFailed && (
-          <div className="banner banner-danger">Couldn't save on this phone. Export a backup from Settings.</div>
-        )}
-        {storage.unreadable && (
-          <div className="banner">Saved data couldn't be read, so the app started afresh. A copy was kept.</div>
-        )}
+        {/* The running screen shows these in its pinned header instead. */}
+        {!(running && tab === 'today') && <StorageBanners />}
         {update.ready && !running && tab !== 'settings' && (
           <div className="banner">
             <span>A new version is ready.</span>

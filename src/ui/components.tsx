@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { switchOff, switchOn } from '../engine/routine';
 import type { Id, Task } from '../engine/types';
+import { storageStatus } from '../store/store';
 import { clockParts, listNames, slack, taskLength } from './format';
 
 const ICONS = {
@@ -172,10 +173,25 @@ export function SlackPill({ leaveBy, outAt }: { leaveBy: number; outAt: number }
 export function BigClock({ ms, className = '' }: { ms: number; className?: string }) {
   const { time, period } = clockParts(ms);
   return (
-    <div className={`big-clock ${className}`}>
+    <span className={`big-clock ${className}`}>
       {time}
       {period && <small>{period}</small>}
-    </div>
+    </span>
+  );
+}
+
+/** Warnings about saving on this phone. */
+export function StorageBanners() {
+  const status = storageStatus();
+  return (
+    <>
+      {status.saveFailed && (
+        <div className="banner banner-danger">Couldn't save on this phone. Export a backup from Settings.</div>
+      )}
+      {status.unreadable && (
+        <div className="banner">Saved data couldn't be read, so the app started afresh. A copy was kept.</div>
+      )}
+    </>
   );
 }
 

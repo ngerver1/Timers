@@ -28,6 +28,7 @@ import {
   saveTask,
   setHandsOn,
 } from '../../store/actions';
+import { features } from '../../features';
 import { newId } from '../../store/schema';
 import { useData } from '../../store/store';
 import { Icon, Sheet, Toggle } from '../components';
@@ -171,7 +172,7 @@ function TaskEditor(props: { task?: Task; tasks: Task[]; usual?: Usual; onClose:
       id: task?.id ?? newId(),
       name: name.trim(),
       handsOnSec: Math.round(handsOnMin * 60),
-      waitSec: Math.round(waitMin * 60),
+      waitSec: features.waits ? Math.round(waitMin * 60) : (task?.waitSec ?? 0),
       after: others.filter((t) => after.has(t.id)).map((t) => t.id),
       optional,
     });
@@ -181,7 +182,7 @@ function TaskEditor(props: { task?: Task; tasks: Task[]; usual?: Usual; onClose:
   const remove = () => {
     if (!task) return;
     const used = tasks.some((t) => t.after.includes(task.id));
-    const warning = used ? ' Rules that wait for it will be removed.' : '';
+    const warning = used ? ' Tasks that come after it will drop that rule.' : '';
     if (confirm(`Delete "${task.name}"?${warning}`)) {
       deleteTask(task.id);
       onClose();
@@ -203,15 +204,19 @@ function TaskEditor(props: { task?: Task; tasks: Task[]; usual?: Usual; onClose:
         </label>
         <div className="field-pair">
           <label className="field">
-            <span>Hands-on (min)</span>
+            <span>Minutes</span>
             <input inputMode="decimal" value={handsOn} onChange={(e) => setHandsOnText(e.target.value)} />
           </label>
-          <label className="field">
-            <span>Wait after (min)</span>
-            <input inputMode="decimal" value={wait} onChange={(e) => setWait(e.target.value)} />
-          </label>
+          {features.waits && (
+            <label className="field">
+              <span>Wait after (min)</span>
+              <input inputMode="decimal" value={wait} onChange={(e) => setWait(e.target.value)} />
+            </label>
+          )}
         </div>
-        <p className="hint">A wait runs on its own after the hands-on part, like coffee brewing. Use 0 for none.</p>
+        {features.waits && (
+          <p className="hint">A wait runs on its own after the hands-on part, like coffee brewing. Use 0 for none.</p>
+        )}
         {usual && (
           <div className="usual">
             <span>
@@ -257,7 +262,7 @@ function TaskEditor(props: { task?: Task; tasks: Task[]; usual?: Usual; onClose:
                     />
                     <span>
                       {t.name}
-                      {loop && <small> already waits for this one</small>}
+                      {loop && <small> needs this one first</small>}
                     </span>
                   </label>
                 );

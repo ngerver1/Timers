@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { at } from '../engine/test-helpers';
-import { duration, earlyLate, listNames, minutesText, parseMinutes, slack, timer } from './format';
+import { drift, duration, earlyLate, listNames, minutesText, parseMinutes, slack, timer } from './format';
 
 describe('format', () => {
   it('writes durations the way you would say them', () => {
@@ -25,6 +25,12 @@ describe('format', () => {
     expect(slack(at(60), at(60.1))).toEqual({ text: '1 min behind', tone: 'behind' });
     expect(earlyLate(at(60), at(57))).toBe('3 min early');
     expect(earlyLate(at(60), at(62))).toBe('2 min late');
+  });
+
+  it('shows how far the estimate has moved since Start', () => {
+    expect(drift(at(63), at(60))).toEqual({ text: '+3 min vs plan', tone: 'behind' });
+    expect(drift(at(58), at(60))).toEqual({ text: '−2 min vs plan', tone: 'ahead' });
+    expect(drift(at(59.5), at(60))).toEqual({ text: 'On plan', tone: 'even' });
   });
 
   it('reads typed minutes', () => {

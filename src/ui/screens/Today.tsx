@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { routineLength } from '../../engine/plan';
 import { activeTasks, closeOver } from '../../engine/routine';
-import { foldRun, lastUndoable, projectState, type DoneTask } from '../../engine/run';
+import { foldRun, lastUndoable, plannedFinish, projectState, type DoneTask, type Projection } from '../../engine/run';
 import type { Slot } from '../../engine/simulate';
 import { suggestDrops, type DropSuggestion } from '../../engine/suggest';
 import { ceilMinute, dateKey, upcomingTime } from '../../engine/time';
@@ -20,9 +20,18 @@ import {
   undoLast,
 } from '../../store/actions';
 import { useData } from '../../store/store';
-import { BigClock, Icon, OptionalPicker, Segmented, Sheet, SlackPill, TimeField } from '../components';
-import { clock, dayLabel, duration, earlyLate, listNames, parseMinutes, taskLength, timer } from '../format';
-import { useNow, useWaitWatcher, useWakeLock } from '../hooks';
+import { forSchedule } from '../../features';
+import { BigClock, Icon, OptionalPicker, Segmented, Sheet, SlackPill, StorageBanners, TimeField } from '../components';
+import { clock, dayLabel, drift, duration, earlyLate, listNames, parseMinutes, taskLength, timer } from '../format';
+import {
+  HERO_MODES,
+  useCollapsingHeader,
+  useHeroMode,
+  useNow,
+  useWaitWatcher,
+  useWakeLock,
+  type HeroMode,
+} from '../hooks';
 
 export function TodayScreen() {
   const data = useData();
@@ -53,7 +62,7 @@ function StartView({ now }: { now: number }) {
   }, [today, on, leaveBy]);
 
   const selected = closeOver(routine.tasks, on); // tasks may have been edited since
-  const length = routineLength(activeTasks(routine.tasks, selected));
+  const length = routineLength(forSchedule(activeTasks(routine.tasks, selected)));
   const outAt = now + length;
   const leaveAt = leaveBy ? upcomingTime(leaveBy, now) : undefined;
   const earlier = finishedRuns(data).find((r) => r.date === today);
@@ -124,13 +133,14 @@ function RunningView({ run, now }: { run: Run; now: number }) {
   useWakeLock(true);
   const state = useMemo(() => foldRun(run), [run]);
   useWaitWatcher(state, now);
+  const planned = useMemo(() => plannedFinish(run), [run.startedAt, run.tasks]);
   const [adding, setAdding] = useState(false);
+  const [mode, cycleMode] = useHeroMode();
+  const header = useCollapsingHeader();
 
   const p = projectState(state, now);
   const suggestion = run.leaveBy !== undefined ? suggestDrops(state, now, run.leaveBy) : undefined;
-  const canUndo = lastUndoable(run) !== undefined;
-  const current = p.current;
-  const later = current ? p.upcoming.slice(1) : p.upcoming;
+  const later = p.current ? p.upcoming.slice(1) : p.upcoming;
   const stale = now - run.startedAt > 12 * 3_600_000;
 
   const outTheDoor = () => {
@@ -140,136 +150,188 @@ function RunningView({ run, now }: { run: Run; now: number }) {
   };
 
   return (
-    <div className="stack running">
-      {stale && <StaleRun run={run} />}
+    <div className="running">
+      <div
+        ref={header.ref}
+        className={`run-header${header.condensed ? ' condensed' : ''}${header.scrolled ? ' scrolled' : ''}`}
+      >
+        <StorageBanners />
+        <Hero run={run} outTheDoor={p.outTheDoor} planned={planned} now={now} mode={mode} onCycle={cycleMode} />
+        <NowCard p={p} now={now} canUndo={lastUndoable(run) !== undefined} />
+      </div>
+      <div style={{ height: header.spacerHeight }} aria-hidden="true" />
 
-      <section className="hero">
-        <div className="hero-label">Out the door</div>
-        <BigClock ms={ceilMinute(p.outTheDoor)} className="hero-clock" />
-        <div className="hero-sub">
-          {run.leaveBy !== undefined ? (
-            <>
-              <SlackPill leaveBy={run.leaveBy} outAt={p.outTheDoor} />
-              <span className="muted">leave by {clock(run.leaveBy)}</span>
-            </>
-          ) : (
-            <span className="muted">No leave-by time today</span>
-          )}
-        </div>
-      </section>
+      <div className="stack">
+        {stale && <StaleRun run={run} />}
 
-      <section className="card now">
-        {current ? (
-          <NowTask slot={current} now={now} />
-        ) : p.allDone ? (
-          <>
-            <div className="now-label">All done</div>
-            <div className="now-name">
-              {p.waits.length > 0 ? `Waiting on ${listNames(p.waits.map((w) => w.task.name))}` : 'Ready to go'}
-            </div>
-            <button type="button" className="btn btn-primary btn-huge" onClick={() => finishRun()}>
-              Out the door
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="now-label">Nothing ready yet</div>
-            {p.upcoming[0] && (
-              <>
-                <div className="now-name">{p.upcoming[0].task.name}</div>
-                <div className="now-time">can start at {clock(p.upcoming[0].start)}</div>
-              </>
-            )}
-          </>
-        )}
-        <div className="now-actions">
-          {current && (
-            <button type="button" className="btn" onClick={guarded('advance', () => skipTasks([current.task.id]))}>
-              Skip
-            </button>
-          )}
-          <button type="button" className="btn" disabled={!canUndo} onClick={guarded('undo', () => undoLast())}>
-            <Icon name="undo" size={20} /> Undo
+        {suggestion && run.leaveBy !== undefined && <DropCard suggestion={suggestion} leaveBy={run.leaveBy} />}
+
+        <div className="action-row">
+          <button type="button" className="btn" onClick={() => setAdding(true)}>
+            <Icon name="plus" size={20} /> One-off task
+          </button>
+          <button type="button" className="btn btn-door" onClick={outTheDoor}>
+            Out the door
           </button>
         </div>
-      </section>
 
-      {suggestion && run.leaveBy !== undefined && <DropCard suggestion={suggestion} leaveBy={run.leaveBy} />}
+        {later.length > 0 && (
+          <section>
+            <h2 className="section-title">Up next</h2>
+            <ul className="card list">
+              {later.map((s) => (
+                <UpcomingRow key={s.task.id} slot={s} />
+              ))}
+            </ul>
+          </section>
+        )}
 
-      <div className="action-row">
-        <button type="button" className="btn" onClick={() => setAdding(true)}>
-          <Icon name="plus" size={20} /> One-off task
-        </button>
-        <button type="button" className="btn btn-door" onClick={outTheDoor}>
-          Out the door
+        {p.done.length > 0 && (
+          <section>
+            <h2 className="section-title">Done</h2>
+            <ul className="card list">
+              {p.done
+                .slice()
+                .reverse()
+                .map((d) => (
+                  <DoneRow key={d.task.id} done={d} />
+                ))}
+            </ul>
+          </section>
+        )}
+
+        {p.skipped.length > 0 && <p className="muted">Skipped: {listNames(p.skipped.map((t) => t.name))}</p>}
+
+        <button
+          type="button"
+          className="btn btn-quiet danger-text"
+          onClick={() => confirm("Discard this morning? It won't be saved to History.") && discardRun()}
+        >
+          Discard this morning
         </button>
       </div>
-
-      {later.length > 0 && (
-        <section>
-          <h2 className="section-title">Up next</h2>
-          <ul className="card list">
-            {later.map((s) => (
-              <UpcomingRow key={s.task.id} slot={s} />
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {p.done.length > 0 && (
-        <section>
-          <h2 className="section-title">Done</h2>
-          <ul className="card list">
-            {p.done
-              .slice()
-              .reverse()
-              .map((d) => (
-                <DoneRow key={d.task.id} done={d} />
-              ))}
-          </ul>
-        </section>
-      )}
-
-      {p.skipped.length > 0 && <p className="muted">Skipped: {listNames(p.skipped.map((t) => t.name))}</p>}
-
-      <button
-        type="button"
-        className="btn btn-quiet danger-text"
-        onClick={() => confirm("Discard this morning? It won't be saved to History.") && discardRun()}
-      >
-        Discard this morning
-      </button>
 
       {adding && <AddOneOffSheet onClose={() => setAdding(false)} />}
     </div>
   );
 }
 
-function NowTask({ slot, now }: { slot: Slot; now: number }) {
-  const elapsed = Math.max(0, now - slot.start);
-  const planned = slot.task.handsOnSec * 1000;
-  const over = elapsed > planned;
-  const fraction = planned > 0 ? Math.min(1, elapsed / planned) : 1;
+/** The big out-the-door display. Tapping it cycles time, countdown and both. */
+function Hero(props: {
+  run: Run;
+  outTheDoor: number;
+  planned: number;
+  now: number;
+  mode: HeroMode;
+  onCycle: () => void;
+}) {
+  const { run, outTheDoor, planned, now, mode } = props;
+  const outAt = ceilMinute(outTheDoor);
+  const countdown = timer(Math.ceil((outTheDoor - now) / 1000) * 1000);
+  const change = drift(outTheDoor, planned);
   return (
-    <>
-      <div className="now-label">Now</div>
-      <div className="now-name">{slot.task.name}</div>
-      <div className={`progress${over ? ' over' : ''}`}>
-        <div style={{ width: `${fraction * 100}%` }} />
-      </div>
-      <div className={`now-time${over ? ' over' : ''}`}>
-        {over
-          ? `${timer(elapsed - planned)} over (planned ${duration(slot.task.handsOnSec)})`
-          : `${timer(elapsed)} of ${duration(slot.task.handsOnSec)}`}
-      </div>
+    <section className={`hero hero-${mode}`}>
       <button
         type="button"
-        className="btn btn-primary btn-huge"
-        onClick={guarded('advance', () => tapDone(slot.task.id))}
+        className="hero-main"
+        onClick={props.onCycle}
+        aria-label={`Out the door at ${clock(outAt)}, in ${countdown}. Tap to switch the display.`}
       >
-        Done
+        <span className="hero-label">{mode === 'countdown' ? 'Out the door in' : 'Out the door'}</span>
+        <span className="hero-figures">
+          {mode !== 'countdown' && <BigClock ms={outAt} />}
+          {mode !== 'time' && <span className="big-clock">{countdown}</span>}
+        </span>
+        <span className="mode-dots" aria-hidden="true">
+          {HERO_MODES.map((m) => (
+            <i key={m} className={m === mode ? 'on' : undefined} />
+          ))}
+        </span>
       </button>
-    </>
+      <div className="hero-sub">
+        <span className={`pill pill-drift pill-${change.tone}`}>{change.text}</span>
+        {run.leaveBy !== undefined && (
+          <>
+            <SlackPill leaveBy={run.leaveBy} outAt={outTheDoor} />
+            <span className="muted hero-leave">leave by {clock(run.leaveBy)}</span>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** The current task, with its Done button. Slims to one line while the list is scrolled. */
+function NowCard({ p, now, canUndo }: { p: Projection; now: number; canUndo: boolean }) {
+  const current = p.current;
+  const next = p.upcoming[0];
+  return (
+    <section className="card now">
+      <div className="now-top">
+        <div className="now-text">
+          <div className="now-label">{current ? 'Now' : p.allDone ? 'All done' : 'Nothing ready yet'}</div>
+          <div className="now-name">{current ? current.task.name : p.allDone ? 'Ready to go' : next?.task.name}</div>
+          {current && <div className="now-detail">planned {duration(current.task.handsOnSec)}</div>}
+          {!current && next && <div className="now-detail">can start at {clock(next.start)}</div>}
+        </div>
+        {current && <TaskTimer key={current.task.id} slot={current} now={now} />}
+      </div>
+      {current && (
+        <button
+          type="button"
+          className="btn btn-primary btn-done"
+          onClick={guarded('advance', () => tapDone(current.task.id))}
+        >
+          Done
+        </button>
+      )}
+      {p.allDone && (
+        <button type="button" className="btn btn-primary btn-done" onClick={() => finishRun()}>
+          Out the door
+        </button>
+      )}
+      <div className="now-actions">
+        {current && (
+          <button type="button" className="btn" onClick={guarded('advance', () => skipTasks([current.task.id]))}>
+            Skip
+          </button>
+        )}
+        <button type="button" className="btn" disabled={!canUndo} onClick={guarded('undo', () => undoLast())}>
+          <Icon name="undo" size={20} /> Undo
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** Countdown ring for the current task: drains over its planned time, then turns red and counts up. */
+function TaskTimer({ slot, now }: { slot: Slot; now: number }) {
+  const planned = slot.task.handsOnSec * 1000;
+  const left = planned - Math.max(0, now - slot.start);
+  const over = left < 0;
+  const remaining = planned > 0 ? Math.max(0, left) / planned : 0;
+  const radius = 16;
+  const circumference = 2 * Math.PI * radius;
+  const text = over ? `+${timer(-left)}` : timer(Math.ceil(left / 1000) * 1000);
+  return (
+    <div className={`task-timer${over ? ' over' : ''}`} role="timer" aria-label={`${text} ${over ? 'over' : 'left'}`}>
+      <svg viewBox="0 0 36 36" aria-hidden="true">
+        <circle className="track" cx="18" cy="18" r={radius} />
+        <circle
+          className="fill"
+          cx="18"
+          cy="18"
+          r={radius}
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - (over ? 1 : remaining))}
+          transform="rotate(-90 18 18)"
+        />
+      </svg>
+      <span className="task-timer-text">
+        {text}
+        <small>{over ? 'over' : 'left'}</small>
+      </span>
+    </div>
   );
 }
 

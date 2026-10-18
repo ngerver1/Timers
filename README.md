@@ -7,22 +7,28 @@ Live at **https://ngerver1.github.io/Timers/**
 
 ## Using it
 
-- **Today**: switch on today's optional tasks, set an optional leave-by time and tap **Start**. While it runs you get
-  the out-the-door time, how far ahead or behind you are, the current task with a big **Done**, Skip, Undo, one-off
-  tasks, and **Out the door** to finish and save. The screen stays awake.
+- **Today**: switch on today's optional tasks, set an optional leave-by time and tap **Start**. While it runs:
+  - the out-the-door time; tap it to switch between the time, a countdown, and both;
+  - how far the estimate has moved since Start (+/− vs plan) and, with a leave-by time, how much spare you have;
+  - the current task with a countdown ring (red and counting up once it runs over), **Done**, Skip and Undo;
+  - one-off tasks, and **Out the door** to finish and save.
+
+  The clock and current task stay pinned at the top and slim down while you scroll the list; scroll up a little and
+  they expand again. The screen stays awake.
+
 - **Plan**: choose the optional tasks and leave-by time for a morning (tomorrow by default) and see when to get up.
   That morning's Start screen is filled in from the plan.
-- **Tasks**: drag to reorder (the order is the priority), tap to edit hands-on time, wait, optional and "after" rules.
+- **Tasks**: drag to reorder (the order is the priority), tap to edit a task's minutes, whether it's optional, and
+  its "after" rules.
 - **History**: past mornings, and each task's usual time (median of the last 10 mornings) with one tap to adopt it.
 - **Settings**: default get-up buffer, and backup export/import.
 
 ## How the estimate works
 
-- You are the only worker, so hands-on parts never overlap; only waits (coffee brewing) run alongside other work.
-- Whenever you're free you do the first task in your order whose "after" tasks are fully finished, waits included.
-  If nothing is ready you're idle until something is.
-- Out the door is when the last task, wait included, finishes. Live, it's always _now + what's left_: the current task
-  is assumed to have started at your last tap, so finishing early pulls the time in and running over pushes it out.
+- You are the only worker, so tasks never overlap.
+- Whenever you're free you do the first task in your order whose "after" tasks are finished.
+- Out the door is when the last task finishes. Live, it's always _now + what's left_: the current task is assumed to
+  have started at your last tap, so finishing early pulls the time in and running over pushes it out.
 - Done taps up to 30 seconds apart count as one batch (you did a few things, then tapped them all). The time since you
   were last free is shared between them in proportion to their standard times, in the order you tapped them.
 - Skip means "not today"; rules pointing at a skipped or switched-off task are ignored. Switching an optional task on
@@ -55,8 +61,10 @@ Every push runs the tests (`.github/workflows/ci.yml`); pushes to `main` also de
 
 ## Built in, not switched on yet
 
-- **Wait alerts**: waits already count in every estimate, and `src/ui/alerts.ts` is called whenever a wait finishes.
-  Vibration, a chime and a spoken "Coffee's ready" go there.
+- **Waits** (coffee brewing while you do other things): the engine schedules them, with tests, and tasks keep their
+  wait times, but the app ignores and hides them while `features.waits` in `src/features.ts` is off. Switching it on
+  brings back the wait field and labels; `src/ui/alerts.ts` is already called whenever a wait finishes, ready for
+  vibration, a chime and a spoken "Coffee's ready".
 - **Appointments**: `latestStart` in `src/engine/plan.ts` already works back from a fixed finish time.
 - **Sync and stand mode**: a morning is an append-only log of taps, so devices can share it. Storage is isolated in
   `src/store/store.ts`.
