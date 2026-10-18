@@ -55,7 +55,7 @@ export function TasksScreen() {
       </header>
       <p className="muted">
         The order is your priority: whenever you're free, the first task that's ready comes next. Drag the handle to
-        reorder; tap a task to edit it.
+        reorder; tap a task to change it.
       </p>
       {activeRun(data) && <p className="card pad note">Changes apply from your next start.</p>}
 
@@ -113,14 +113,19 @@ function TaskRow(props: { task: Task; tasks: Task[]; usual?: Usual; onEdit: () =
       >
         <Icon name="grip" />
       </button>
-      <button type="button" className="task-main" onClick={props.onEdit}>
-        <span className="row-title">
-          {task.name}
-          {task.optional && <span className="chip">optional</span>}
+      <button type="button" className="task-main" onClick={props.onEdit} aria-label={`Edit ${task.name}`}>
+        <span className="task-main-text">
+          <span className="row-title">
+            {task.name}
+            {task.optional && <span className="chip">optional</span>}
+          </span>
+          <span className="row-meta">
+            {taskLength(task)}
+            {after.length > 0 && ` · after ${listNames(after)}`}
+          </span>
         </span>
-        <span className="row-meta">
-          {taskLength(task)}
-          {after.length > 0 && ` · after ${listNames(after)}`}
+        <span className="row-edit">
+          <Icon name="edit" size={20} />
         </span>
       </button>
       {usual && <UsualTime task={task} usual={usual} />}

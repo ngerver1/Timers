@@ -48,6 +48,7 @@ export interface Projection {
 }
 
 type DoneEvent = Extract<RunEvent, { type: 'done' }>;
+type EditEvent = Extract<RunEvent, { type: 'edit' }>;
 
 /** Events that still count: undo events and the events they cancelled are dropped. */
 export function liveEvents(events: readonly RunEvent[]): RunEvent[] {
@@ -83,6 +84,8 @@ export function foldRun(run: Run): RunState {
       applySkip(state, e.taskIds, e.at);
     } else if (e.type === 'add') {
       applyAdd(state, e.task, e.position, e.at);
+    } else if (e.type === 'edit') {
+      applyEdit(state, e);
     }
   }
   return state;
@@ -155,6 +158,14 @@ function applyAdd(state: RunState, task: Task, position: 'next' | 'last', at: nu
     state.freeAt = at;
     state.pinned = undefined;
   }
+}
+
+/** Fixes a task's name or minutes for the rest of this morning. */
+function applyEdit(state: RunState, e: EditEvent): void {
+  const change = (t: Task): Task => (t.id === e.taskId ? { ...t, name: e.name, handsOnSec: e.handsOnSec } : t);
+  state.tasks = state.tasks.map(change);
+  const done = state.done.get(e.taskId);
+  if (done) state.done.set(e.taskId, { ...done, task: change(done.task) });
 }
 
 function applyDone(state: RunState, taps: readonly DoneEvent[]): void {

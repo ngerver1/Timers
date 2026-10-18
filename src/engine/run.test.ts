@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { actualSeconds } from './learning';
 import { foldRun, lastUndoable, plannedFinish, project } from './run';
-import { add, at, done, makeRun, mins, skip, T0, task, undo } from './test-helpers';
+import { add, at, done, editTask, makeRun, mins, skip, T0, task, undo } from './test-helpers';
 import type { Run } from './types';
 
 // teeth 0–3, coffee 3–5 (ready at 9), dog's breakfast 5–8, walk 8–28.
@@ -173,6 +173,29 @@ describe('skip, one-offs and undo', () => {
     const p = project(run, at(2));
     expect(p.current?.task.id).toBe('keys');
     expect(p.current?.start).toBe(at(2));
+  });
+
+  it('editing a task changes this morning straight away', () => {
+    const run = makeRun(basic, [editTask('walk', 'Long walk', 25, 1)]);
+    const p = project(run, at(1));
+    expect(p.upcoming.at(-1)?.task).toMatchObject({ name: 'Long walk', handsOnSec: 25 * 60 });
+    expect(outAt(run, 1)).toBe(33);
+    expect(p.current?.task.id).toBe('teeth'); // and you stay on what you were doing
+    expect(p.current?.start).toBe(T0);
+  });
+
+  it('editing the current task resets its countdown, not its start', () => {
+    const run = makeRun(basic, [editTask('teeth', 'Brush teeth', 5, 1)]);
+    const p = project(run, at(1));
+    expect(p.current?.start).toBe(T0);
+    expect(mins(p.current!.handsOnEnd)).toBe(5);
+    expect(outAt(run, 1)).toBe(30);
+  });
+
+  it('an edit can be undone', () => {
+    const change = editTask('walk', 'Walk', 25, 1);
+    const run = makeRun(basic, [change, undo(change, 2)]);
+    expect(outAt(run, 2)).toBe(28);
   });
 
   it('undo cancels the last tap', () => {

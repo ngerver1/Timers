@@ -50,6 +50,14 @@ export const add = (t: Task, position: 'next' | 'last', min: number): RunEvent =
   task: t,
   position,
 });
+export const editTask = (taskId: string, name: string, minutes: number, min: number): RunEvent => ({
+  id: id(),
+  at: at(min),
+  type: 'edit',
+  taskId,
+  name,
+  handsOnSec: minutes * 60,
+});
 export const undo = (target: RunEvent, min: number): RunEvent => ({
   id: id(),
   at: at(min),

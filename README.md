@@ -10,16 +10,18 @@ Live at **https://ngerver1.github.io/Timers/**
 - **Today**: switch on today's optional tasks, set an optional leave-by time and tap **Start**. While it runs:
   - the out-the-door time; tap it to switch between the time, a countdown, and both;
   - how far the estimate has moved since Start (+/− vs plan) and, with a leave-by time, how much spare you have;
-  - the current task with a countdown ring (red and counting up once it runs over), **Done**, Skip and Undo;
+  - the current task with a countdown ring (red and counting up once it runs over), **Done**, Skip, Edit and Undo;
   - one-off tasks, and **Out the door** to finish and save.
+  - Tap any task in Up next (or Edit on the current one) to fix its name or minutes for this morning, and optionally
+    for future mornings too.
 
   The clock and current task stay pinned at the top and slim down while you scroll the list; scroll up a little and
   they expand again. The screen stays awake.
 
 - **Plan**: choose the optional tasks and leave-by time for a morning (tomorrow by default) and see when to get up.
   That morning's Start screen is filled in from the plan.
-- **Tasks**: drag to reorder (the order is the priority), tap to edit a task's minutes, whether it's optional, and
-  its "after" rules.
+- **Tasks**: drag to reorder (the order is the priority); tap a task (the pencil) to change its name, minutes,
+  whether it's optional, and its "after" rules.
 - **History**: past mornings, and each task's usual time (median of the last 10 mornings) with one tap to adopt it.
 - **Settings**: default get-up buffer, and backup export/import.
 

@@ -915,13 +915,13 @@ p {
 
 .task-main {
   min-height: 64px;
-  padding: 10px 16px 10px 0;
+  padding: 10px 14px 10px 0;
   border: 0;
   background: transparent;
   text-align: left;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  align-items: center;
+  gap: 12px;
   cursor: pointer;
 }
 
@@ -1102,4 +1102,37 @@ p {
   border-radius: 999px;
   background: var(--danger);
   border: 2px solid var(--surface);
+}
+
+/* ---- Editable rows ---- */
+
+.task-main-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.row-edit {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+.row-button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row-button .row-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }

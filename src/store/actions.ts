@@ -130,6 +130,11 @@ export function addOneOff(name: string, minutes: number, position: 'next' | 'las
   withActiveRun((run) => append(run, { id: newId(), at: now, type: 'add', task, position }));
 }
 
+/** Fixes a task's details for this morning only; the routine is changed separately. */
+export function editRunTask(taskId: Id, name: string, handsOnSec: number, now = Date.now()) {
+  withActiveRun((run) => append(run, { id: newId(), at: now, type: 'edit', taskId, name, handsOnSec }));
+}
+
 export function undoLast(now = Date.now()) {
   withActiveRun((run) => {
     const target = lastUndoable(run);

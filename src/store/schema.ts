@@ -112,6 +112,14 @@ function event(v: unknown): RunEvent {
       return { ...base, type: 'add', task: task(v.task), position: v.position === 'last' ? 'last' : 'next' };
     case 'undo':
       return { ...base, type: 'undo', targetId: str(v.targetId, 'event target') };
+    case 'edit':
+      return {
+        ...base,
+        type: 'edit',
+        taskId: str(v.taskId, 'event task'),
+        name: str(v.name, 'event name'),
+        handsOnSec: Math.max(0, num(v.handsOnSec, 'event minutes')),
+      };
     default:
       return fail('event type');
   }

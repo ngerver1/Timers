@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { routineLength } from '../engine/plan';
 import { activeTasks } from '../engine/routine';
-import { add, done, makeRun, MIN, skip, task, undo } from '../engine/test-helpers';
+import { add, done, editTask, makeRun, MIN, skip, task, undo } from '../engine/test-helpers';
 import { fromBackup, seedData, toBackup, validateData } from './schema';
 
 describe('store schema', () => {
@@ -29,7 +29,11 @@ describe('store schema', () => {
     const data = seedData();
     const tap = done('teeth', 3);
     data.runs.push({
-      ...makeRun([task('teeth', 3)], [tap, undo(tap, 4), skip(['teeth'], 5), add(task('keys', 1), 'last', 6)], 60),
+      ...makeRun(
+        [task('teeth', 3)],
+        [tap, undo(tap, 4), skip(['teeth'], 5), add(task('keys', 1), 'last', 6), editTask('keys', 'Find keys', 2, 7)],
+        60,
+      ),
       finishedAt: 1,
     });
     expect(fromBackup(toBackup(data))).toEqual(data);

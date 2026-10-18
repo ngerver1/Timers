@@ -27,6 +27,7 @@ export type RunEvent =
   | { id: Id; at: number; type: 'done'; taskId: Id }
   | { id: Id; at: number; type: 'skip'; taskIds: Id[] }
   | { id: Id; at: number; type: 'add'; task: Task; position: 'next' | 'last' }
+  | { id: Id; at: number; type: 'edit'; taskId: Id; name: string; handsOnSec: number }
   | { id: Id; at: number; type: 'undo'; targetId: Id };
 
 /** One morning. */

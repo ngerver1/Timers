@@ -5,15 +5,17 @@ import { foldRun, lastUndoable, plannedFinish, projectState, type DoneTask, type
 import type { Slot } from '../../engine/simulate';
 import { suggestDrops, type DropSuggestion } from '../../engine/suggest';
 import { ceilMinute, dateKey, upcomingTime } from '../../engine/time';
-import type { Id, Run } from '../../engine/types';
+import type { Id, Run, Task } from '../../engine/types';
 import {
   activeRoutine,
   activeRun,
   addOneOff,
   discardRun,
+  editRunTask,
   finishRun,
   finishedRuns,
   planFor,
+  saveTask,
   skipTasks,
   startRun,
   tapDone,
@@ -21,8 +23,29 @@ import {
 } from '../../store/actions';
 import { useData } from '../../store/store';
 import { forSchedule } from '../../features';
-import { BigClock, Icon, OptionalPicker, Segmented, Sheet, SlackPill, StorageBanners, TimeField } from '../components';
-import { clock, dayLabel, drift, duration, earlyLate, listNames, parseMinutes, taskLength, timer } from '../format';
+import {
+  BigClock,
+  Icon,
+  OptionalPicker,
+  Segmented,
+  Sheet,
+  SlackPill,
+  StorageBanners,
+  TimeField,
+  Toggle,
+} from '../components';
+import {
+  clock,
+  dayLabel,
+  drift,
+  duration,
+  earlyLate,
+  listNames,
+  minutesText,
+  parseMinutes,
+  taskLength,
+  timer,
+} from '../format';
 import {
   HERO_MODES,
   useCollapsingHeader,
@@ -135,6 +158,7 @@ function RunningView({ run, now }: { run: Run; now: number }) {
   useWaitWatcher(state, now);
   const planned = useMemo(() => plannedFinish(run), [run.startedAt, run.tasks]);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<Task | null>(null);
   const [mode, cycleMode] = useHeroMode();
   const header = useCollapsingHeader();
 
@@ -157,7 +181,7 @@ function RunningView({ run, now }: { run: Run; now: number }) {
       >
         <StorageBanners />
         <Hero run={run} outTheDoor={p.outTheDoor} planned={planned} now={now} mode={mode} onCycle={cycleMode} />
-        <NowCard p={p} now={now} canUndo={lastUndoable(run) !== undefined} />
+        <NowCard p={p} now={now} canUndo={lastUndoable(run) !== undefined} onEdit={setEditing} />
       </div>
       <div style={{ height: header.spacerHeight }} aria-hidden="true" />
 
@@ -180,7 +204,7 @@ function RunningView({ run, now }: { run: Run; now: number }) {
             <h2 className="section-title">Up next</h2>
             <ul className="card list">
               {later.map((s) => (
-                <UpcomingRow key={s.task.id} slot={s} />
+                <UpcomingRow key={s.task.id} slot={s} onEdit={() => setEditing(s.task)} />
               ))}
             </ul>
           </section>
@@ -212,6 +236,7 @@ function RunningView({ run, now }: { run: Run; now: number }) {
       </div>
 
       {adding && <AddOneOffSheet onClose={() => setAdding(false)} />}
+      {editing && <EditRunTaskSheet task={editing} onClose={() => setEditing(null)} />}
     </div>
   );
 }
@@ -262,7 +287,8 @@ function Hero(props: {
 }
 
 /** The current task, with its Done button. Slims to one line while the list is scrolled. */
-function NowCard({ p, now, canUndo }: { p: Projection; now: number; canUndo: boolean }) {
+function NowCard(props: { p: Projection; now: number; canUndo: boolean; onEdit: (task: Task) => void }) {
+  const { p, now, canUndo } = props;
   const current = p.current;
   const next = p.upcoming[0];
   return (
@@ -294,6 +320,11 @@ function NowCard({ p, now, canUndo }: { p: Projection; now: number; canUndo: boo
         {current && (
           <button type="button" className="btn" onClick={guarded('advance', () => skipTasks([current.task.id]))}>
             Skip
+          </button>
+        )}
+        {current && (
+          <button type="button" className="btn" onClick={() => props.onEdit(current.task)}>
+            <Icon name="edit" size={18} /> Edit
           </button>
         )}
         <button type="button" className="btn" disabled={!canUndo} onClick={guarded('undo', () => undoLast())}>
@@ -335,15 +366,16 @@ function TaskTimer({ slot, now }: { slot: Slot; now: number }) {
   );
 }
 
-function UpcomingRow({ slot }: { slot: Slot }) {
+function UpcomingRow({ slot, onEdit }: { slot: Slot; onEdit: () => void }) {
   return (
     <li className="row">
-      <div className="row-main">
-        <div className="row-title">{slot.task.name}</div>
-        <div className="row-meta">
+      <button type="button" className="row-main row-button" onClick={onEdit} aria-label={`Edit ${slot.task.name}`}>
+        <span className="row-title">{slot.task.name}</span>
+        <span className="row-meta">
           {clock(slot.start)} · {taskLength(slot.task)}
-        </div>
-      </div>
+          <Icon name="edit" size={14} />
+        </span>
+      </button>
       <button type="button" className="btn btn-quiet" onClick={guarded('advance', () => skipTasks([slot.task.id]))}>
         Skip
       </button>
@@ -456,6 +488,61 @@ function AddOneOffSheet({ onClose }: { onClose: () => void }) {
         />
         <button type="submit" className="btn btn-primary" disabled={!ok}>
           Add
+        </button>
+      </form>
+    </Sheet>
+  );
+}
+
+/** Fixes a task during a morning: for this morning, and optionally for future ones too. */
+function EditRunTaskSheet({ task, onClose }: { task: Task; onClose: () => void }) {
+  const data = useData();
+  const inRoutine = activeRoutine(data).tasks.find((t) => t.id === task.id);
+  const [name, setName] = useState(task.name);
+  const [minutes, setMinutes] = useState(minutesText(task.handsOnSec));
+  const [alsoLater, setAlsoLater] = useState(true);
+  const value = parseMinutes(minutes);
+  const ok = name.trim() !== '' && value !== undefined;
+  const save = () => {
+    if (!ok) return;
+    const fixed = { name: name.trim(), handsOnSec: Math.round(value * 60) };
+    if (fixed.name !== task.name || fixed.handsOnSec !== task.handsOnSec) {
+      editRunTask(task.id, fixed.name, fixed.handsOnSec);
+    }
+    if (inRoutine && alsoLater) saveTask({ ...inRoutine, ...fixed });
+    onClose();
+  };
+  return (
+    <Sheet title="Edit task" onClose={onClose}>
+      <form
+        className="stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save();
+        }}
+      >
+        <label className="field">
+          <span>Name</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Minutes</span>
+          <input inputMode="decimal" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
+        </label>
+        {inRoutine ? (
+          <div className="card list">
+            <Toggle
+              label="Also change it for future mornings"
+              hint="Updates it on the Tasks tab"
+              checked={alsoLater}
+              onChange={setAlsoLater}
+            />
+          </div>
+        ) : (
+          <p className="hint">A one-off task, so this only changes this morning.</p>
+        )}
+        <button type="submit" className="btn btn-primary" disabled={!ok}>
+          Save
         </button>
       </form>
     </Sheet>
