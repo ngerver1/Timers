@@ -42,8 +42,10 @@ import {
   earlyLate,
   listNames,
   minutesText,
+  nudgedSeconds,
   parseMinutes,
   taskLength,
+  taskProgress,
   timer,
 } from '../format';
 import {
@@ -180,7 +182,15 @@ function RunningView({ run, now }: { run: Run; now: number }) {
         className={`run-header${header.condensed ? ' condensed' : ''}${header.scrolled ? ' scrolled' : ''}`}
       >
         <StorageBanners />
-        <Hero run={run} outTheDoor={p.outTheDoor} planned={planned} now={now} mode={mode} onCycle={cycleMode} />
+        <Hero
+          run={run}
+          outTheDoor={p.outTheDoor}
+          planned={planned}
+          now={now}
+          overMs={p.current ? Math.max(0, -progressOf(p.current, now).leftMs) : 0}
+          mode={mode}
+          onCycle={cycleMode}
+        />
         <NowCard p={p} now={now} canUndo={lastUndoable(run) !== undefined} onEdit={setEditing} />
       </div>
       <div style={{ height: header.spacerHeight }} aria-hidden="true" />
@@ -247,15 +257,17 @@ function Hero(props: {
   outTheDoor: number;
   planned: number;
   now: number;
+  /** How far the current task is over its planned time (0 if it isn't). */
+  overMs: number;
   mode: HeroMode;
   onCycle: () => void;
 }) {
-  const { run, outTheDoor, planned, now, mode } = props;
+  const { run, outTheDoor, planned, now, overMs, mode } = props;
   const outAt = ceilMinute(outTheDoor);
   const countdown = timer(Math.ceil((outTheDoor - now) / 1000) * 1000);
   const change = drift(outTheDoor, planned);
   return (
-    <section className={`hero hero-${mode}`}>
+    <section className={`hero hero-${mode}${overMs > 0 ? ' hero-over' : ''}`}>
       <button
         type="button"
         className="hero-main"
@@ -267,6 +279,7 @@ function Hero(props: {
           {mode !== 'countdown' && <BigClock ms={outAt} />}
           {mode !== 'time' && <span className="big-clock">{countdown}</span>}
         </span>
+        {overMs > 0 && <span className="hero-alert">Running over · +{timer(overMs)}</span>}
         <span className="mode-dots" aria-hidden="true">
           {HERO_MODES.map((m) => (
             <i key={m} className={m === mode ? 'on' : undefined} />
@@ -297,7 +310,7 @@ function NowCard(props: { p: Projection; now: number; canUndo: boolean; onEdit: 
         <div className="now-text">
           <div className="now-label">{current ? 'Now' : p.allDone ? 'All done' : 'Nothing ready yet'}</div>
           <div className="now-name">{current ? current.task.name : p.allDone ? 'Ready to go' : next?.task.name}</div>
-          {current && <div className="now-detail">planned {duration(current.task.handsOnSec)}</div>}
+          {current && <AdjustPlanned task={current.task} />}
           {!current && next && <div className="now-detail">can start at {clock(next.start)}</div>}
         </div>
         {current && <TaskTimer key={current.task.id} slot={current} now={now} />}
@@ -335,12 +348,37 @@ function NowCard(props: { p: Projection; now: number; canUndo: boolean; onEdit: 
   );
 }
 
-/** Countdown ring for the current task: drains over its planned time, then turns red and counts up. */
+const progressOf = (slot: Slot, now: number) => taskProgress(slot.task.handsOnSec * 1000, now - slot.start);
+
+/** Quick −/+ on the live task's planned time, for this morning only ("it's raining, short walk"). */
+function AdjustPlanned({ task }: { task: Task }) {
+  const nudge = (minutes: number) => {
+    const sec = nudgedSeconds(task.handsOnSec, minutes);
+    if (sec !== task.handsOnSec) editRunTask(task.id, task.name, sec);
+  };
+  return (
+    <div className="now-adjust" role="group" aria-label="Change the planned time">
+      {[-5, -1].map((m) => (
+        <button key={m} type="button" className="btn btn-adjust" onClick={() => nudge(m)} aria-label={`${-m} min less`}>
+          −{-m}
+        </button>
+      ))}
+      <span className="now-planned">
+        <strong>{duration(task.handsOnSec)}</strong>
+        <small>planned</small>
+      </span>
+      {[1, 5].map((m) => (
+        <button key={m} type="button" className="btn btn-adjust" onClick={() => nudge(m)} aria-label={`${m} min more`}>
+          +{m}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Countdown ring for the current task: drains over its planned time, then a red arc grows as you run over. */
 function TaskTimer({ slot, now }: { slot: Slot; now: number }) {
-  const planned = slot.task.handsOnSec * 1000;
-  const left = planned - Math.max(0, now - slot.start);
-  const over = left < 0;
-  const remaining = planned > 0 ? Math.max(0, left) / planned : 0;
+  const { leftMs: left, over, ring } = progressOf(slot, now);
   const radius = 16;
   const circumference = 2 * Math.PI * radius;
   const text = over ? `+${timer(-left)}` : timer(Math.ceil(left / 1000) * 1000);
@@ -354,7 +392,7 @@ function TaskTimer({ slot, now }: { slot: Slot; now: number }) {
           cy="18"
           r={radius}
           strokeDasharray={circumference}
-          strokeDashoffset={circumference * (1 - (over ? 1 : remaining))}
+          strokeDashoffset={circumference * (1 - ring)}
           transform="rotate(-90 18 18)"
         />
       </svg>

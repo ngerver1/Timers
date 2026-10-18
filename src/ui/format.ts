@@ -55,6 +55,23 @@ export function timer(ms: number): string {
   return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 }
 
+/**
+ * Where the current task is against its planned time. The ring drains while
+ * there's time left; once over, a red arc grows instead, filling the circle when
+ * you're over by the whole planned time.
+ */
+export function taskProgress(plannedMs: number, elapsedMs: number): { leftMs: number; over: boolean; ring: number } {
+  const leftMs = plannedMs - Math.max(0, elapsedMs);
+  const over = leftMs < 0;
+  if (plannedMs <= 0) return { leftMs, over, ring: over ? 1 : 0 };
+  return { leftMs, over, ring: over ? Math.min(1, -leftMs / plannedMs) : leftMs / plannedMs };
+}
+
+/** A live task's planned time nudged by whole minutes: never below a minute (or what it was), at most 6 hours. */
+export function nudgedSeconds(sec: number, minutes: number): number {
+  return Math.min(6 * 3600, Math.max(Math.min(60, sec), sec + minutes * 60));
+}
+
 /** "3 min", or "2 min + 4 min wait" once waits are switched on. */
 export function taskLength(task: Pick<Task, 'handsOnSec' | 'waitSec'>): string {
   return features.waits && task.waitSec > 0

@@ -10,7 +10,10 @@ Live at **https://ngerver1.github.io/Timers/**
 - **Today**: switch on today's optional tasks, set an optional leave-by time and tap **Start**. While it runs:
   - the out-the-door time; tap it to switch between the time, a countdown, and both;
   - how far the estimate has moved since Start (+/− vs plan) and, with a leave-by time, how much spare you have;
-  - the current task with a countdown ring (red and counting up once it runs over), **Done**, Skip, Edit and Undo;
+  - the current task with a countdown ring, **Done**, Skip, Edit and Undo, and −5/−1/+1/+5 buttons to change its
+    planned time for this morning (it's raining: short walk);
+  - when the current task runs over, the ring grows a red arc (full when you're over by the whole planned time) and
+    the big display turns red with a live "Running over" timer;
   - one-off tasks, and **Out the door** to finish and save.
   - Tap any task in Up next (or Edit on the current one) to fix its name or minutes for this morning, and optionally
     for future mornings too.

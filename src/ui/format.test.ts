@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { at } from '../engine/test-helpers';
-import { drift, duration, earlyLate, listNames, minutesText, parseMinutes, slack, timer } from './format';
+import {
+  drift,
+  duration,
+  earlyLate,
+  listNames,
+  minutesText,
+  nudgedSeconds,
+  parseMinutes,
+  slack,
+  taskProgress,
+  timer,
+} from './format';
 
 describe('format', () => {
   it('writes durations the way you would say them', () => {
@@ -31,6 +42,21 @@ describe('format', () => {
     expect(drift(at(63), at(60))).toEqual({ text: '+3 min vs plan', tone: 'behind' });
     expect(drift(at(58), at(60))).toEqual({ text: '−2 min vs plan', tone: 'ahead' });
     expect(drift(at(59.5), at(60))).toEqual({ text: 'On plan', tone: 'even' });
+  });
+
+  it('drains the task ring, then grows a red arc as you run over', () => {
+    const MIN = 60_000;
+    expect(taskProgress(20 * MIN, 10 * MIN)).toEqual({ leftMs: 10 * MIN, over: false, ring: 0.5 });
+    expect(taskProgress(20 * MIN, 20 * MIN)).toEqual({ leftMs: 0, over: false, ring: 0 });
+    expect(taskProgress(20 * MIN, 25 * MIN)).toEqual({ leftMs: -5 * MIN, over: true, ring: 0.25 });
+    expect(taskProgress(20 * MIN, 60 * MIN).ring).toBe(1); // full red once over by the whole planned time
+  });
+
+  it('nudges a live task by whole minutes, within limits', () => {
+    expect(nudgedSeconds(20 * 60, -5)).toBe(15 * 60);
+    expect(nudgedSeconds(3 * 60, -5)).toBe(60); // never below a minute
+    expect(nudgedSeconds(30, -1)).toBe(30); // or below what a short task already was
+    expect(nudgedSeconds(3 * 60, 1)).toBe(4 * 60);
   });
 
   it('reads typed minutes', () => {

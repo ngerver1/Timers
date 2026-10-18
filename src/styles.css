@@ -1136,3 +1136,50 @@ p {
   align-items: center;
   gap: 6px;
 }
+
+/* ---- Quick adjust and running over ---- */
+
+.now-adjust {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.btn-adjust {
+  min-height: 40px;
+  min-width: 44px;
+  padding: 0 6px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.now-planned {
+  min-width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+}
+
+.now-planned small {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.hero-over .hero-figures .big-clock {
+  color: var(--danger);
+}
+
+.hero-alert {
+  margin-top: 6px;
+  font-weight: 700;
+  color: var(--danger);
+  font-variant-numeric: tabular-nums;
+}
+
+.condensed .now-adjust,
+.condensed .hero-alert {
+  display: none;
+}
