@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { median, tidySeconds, usualTimes } from './learning';
-import { getUpTime, routineLength } from './plan';
+import { finishFrom, latestStart, routineLength } from './plan';
 import { activeTasks } from './routine';
 import { foldRun } from './run';
 import { at, done, makeRun, MIN, morning, skip, task } from './test-helpers';
@@ -8,10 +8,11 @@ import { addDays, atTime, ceilMinute, dateKey, nextMorning, toHhmm } from './tim
 import { waitsEndedBetween } from './waits';
 
 describe('plan', () => {
-  it('works back from leave-by to a get-up time', () => {
+  it('works back from a done-by time, or forward from a start time', () => {
     const today = activeTasks(morning, new Set());
     expect(routineLength(today)).toBe(46 * MIN);
-    expect(getUpTime(today, at(90), 10)).toBe(at(90 - 46 - 10));
+    expect(latestStart(today, at(90))).toBe(at(90 - 46));
+    expect(finishFrom(today, at(10))).toBe(at(10 + 46));
   });
 });
 

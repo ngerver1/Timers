@@ -3,14 +3,13 @@ import { actualSeconds, LEARN_FROM, tidySeconds, usualTimes } from '../../engine
 import { foldRun, plannedFinish } from '../../engine/run';
 import { ceilMinute } from '../../engine/time';
 import type { Run } from '../../engine/types';
-import { activeRoutine, deleteRun, finishedRuns } from '../../store/actions';
+import { deleteRun, finishedRuns } from '../../store/actions';
 import { useData } from '../../store/store';
-import { clock, dayLabel, duration, earlyLate } from '../format';
-import { UsualTime } from './Tasks';
+import { clock, dayLabel, duration, earlyLate, words } from '../format';
+import { UsualTime } from './Flows';
 
 export function HistoryScreen() {
   const data = useData();
-  const routine = activeRoutine(data);
   const runs = useMemo(() => finishedRuns(data), [data]);
   const usual = useMemo(() => usualTimes(runs), [runs]);
 
@@ -22,9 +21,9 @@ export function HistoryScreen() {
 
       <section>
         <h2 className="section-title">Usual times</h2>
-        <p className="muted">Median hands-on time over the last {LEARN_FROM} mornings that included each task.</p>
+        <p className="muted">Median time over the last {LEARN_FROM} runs that included each task, in any flow.</p>
         <ul className="card list">
-          {routine.tasks.map((t) => {
+          {data.tasks.map((t) => {
             const u = usual.get(t.id);
             return (
               <li key={t.id} className="row usual-row">
@@ -33,7 +32,7 @@ export function HistoryScreen() {
                   <div className="row-meta">
                     Standard {duration(t.handsOnSec)}
                     {!u
-                      ? ' · no mornings yet'
+                      ? ' · not timed yet'
                       : tidySeconds(u.medianSec) === t.handsOnSec && ` · usually the same (${u.samples})`}
                   </div>
                   {u && <UsualTime task={t} usual={u} />}
@@ -45,9 +44,9 @@ export function HistoryScreen() {
       </section>
 
       <section>
-        <h2 className="section-title">Past mornings</h2>
+        <h2 className="section-title">Past runs</h2>
         {runs.length === 0 ? (
-          <p className="muted">Nothing yet. Each morning is saved here when you tap Out the door.</p>
+          <p className="muted">Nothing yet. Each run is saved here when you tap Out the door (or Finish).</p>
         ) : (
           <div className="stack-tight">
             {runs.map((r) => (
@@ -66,17 +65,20 @@ function RunCard({ run }: { run: Run }) {
   const actual = actualSeconds(run);
   const notDone = run.tasks.filter((t) => !state.done.has(t.id) && !state.skipped.has(t.id));
   const oneOffs = new Set(state.tasks.filter((t) => !run.tasks.some((x) => x.id === t.id)).map((t) => t.id));
+  const w = words(run.ending);
   return (
     <details className="card run-card">
       <summary>
-        <div className="row-title">{dayLabel(run.date)}</div>
+        <div className="row-title">
+          {dayLabel(run.date)} · {run.flowName}
+        </div>
         <div>
-          Out at {clock(out)}
-          {run.leaveBy !== undefined && ` · ${earlyLate(run.leaveBy, out)}`}
+          {w.finish} at {clock(out)}
+          {run.finishBy !== undefined && ` · ${earlyLate(run.finishBy, out)}`}
         </div>
         <div className="row-meta">
           Started {clock(run.startedAt)} · took {duration(Math.round((out - run.startedAt) / 60_000) * 60)} · planned
-          out by {clock(ceilMinute(plannedFinish(run)))}
+          for {clock(ceilMinute(plannedFinish(run)))}
         </div>
       </summary>
       <ul className="list">
@@ -113,9 +115,9 @@ function RunCard({ run }: { run: Run }) {
       <button
         type="button"
         className="btn btn-quiet danger-text"
-        onClick={() => confirm('Delete this morning from History?') && deleteRun(run.id)}
+        onClick={() => confirm(`Delete this ${run.flowName} run from History?`) && deleteRun(run.id)}
       >
-        Delete this morning
+        Delete this run
       </button>
     </details>
   );

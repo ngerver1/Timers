@@ -3,6 +3,7 @@
 /** Random UUIDs, so data from several devices can be merged once sync arrives. */
 export type Id = string;
 
+/** A task as a flow uses it: the shared task plus whether it's optional in that flow. */
 export interface Task {
   id: Id;
   name: string;
@@ -15,11 +16,29 @@ export interface Task {
   optional: boolean;
 }
 
-export interface Routine {
+/** A task in your shared list. Flows pick which of these they use. */
+export type TaskDef = Omit<Task, 'optional'>;
+
+export interface FlowItem {
+  taskId: Id;
+  optional: boolean;
+}
+
+/** How a flow ends, which sets its wording: leaving the house ("out the door"), or just being done. */
+export type Ending = 'leave' | 'done';
+
+/** Which end of a plan is fixed, like Google Maps' "Arrive by" and "Depart at". */
+export type PlanMode = 'doneBy' | 'startAt';
+
+/** A routine, such as Wake up or Dinner. */
+export interface Flow {
   id: Id;
   name: string;
+  ending: Ending;
   /** Array order is the priority order. */
-  tasks: Task[];
+  items: FlowItem[];
+  /** The time you usually plan around, remembered from last time. */
+  usual?: { mode: PlanMode; time: string };
 }
 
 /** What you tapped during a run. Runs are append-only logs; everything else is derived. */
@@ -30,19 +49,22 @@ export type RunEvent =
   | { id: Id; at: number; type: 'edit'; taskId: Id; name: string; handsOnSec: number }
   | { id: Id; at: number; type: 'undo'; targetId: Id };
 
-/** One morning. */
+/** One go at a flow, such as this morning's Wake up. */
 export interface Run {
   id: Id;
-  routineId: Id;
+  flowId: Id;
+  /** Copied at Start, so History reads right even if the flow is renamed or deleted. */
+  flowName: string;
+  ending: Ending;
   /** Local calendar date the run started, YYYY-MM-DD. */
   date: string;
-  /** Today's tasks (required plus switched-on optional), copied from the routine at Start, in priority order. */
+  /** Today's tasks (required plus switched-on optional), copied from the flow at Start, in priority order. */
   tasks: Task[];
   optionalOn: Id[];
-  /** Epoch ms. Later versions can work this out from an appointment. */
-  leaveBy?: number;
+  /** Must be finished by (epoch ms): leave-by for a morning. Appointments can set this later. */
+  finishBy?: number;
   startedAt: number;
-  /** Set when you tap Out the door. */
+  /** Set when you tap Out the door (or Finish). */
   finishedAt?: number;
   events: RunEvent[];
 }

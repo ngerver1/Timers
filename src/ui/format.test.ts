@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { at } from '../engine/test-helpers';
 import {
+  count,
   drift,
   duration,
   earlyLate,
@@ -11,6 +12,7 @@ import {
   slack,
   taskProgress,
   timer,
+  words,
 } from './format';
 
 describe('format', () => {
@@ -73,5 +75,17 @@ describe('format', () => {
   it('lists names', () => {
     expect(listNames(['Pack bag'])).toBe('Pack bag');
     expect(listNames(['Turn on iron', 'Iron clothes', 'Pack bag'])).toBe('Turn on iron, Iron clothes and Pack bag');
+    expect(count(1, 'flow')).toBe('1 flow');
+    expect(count(0, 'past run')).toBe('0 past runs');
+  });
+
+  it('talks about leaving the house, or just being done', () => {
+    expect(words('leave')).toMatchObject({ finish: 'Out the door', by: 'Leave by', finishButton: 'Out the door' });
+    expect(words('done')).toMatchObject({
+      finish: 'Done',
+      by: 'Done by',
+      toBeBy: 'to be done by',
+      finishButton: 'Finish',
+    });
   });
 });

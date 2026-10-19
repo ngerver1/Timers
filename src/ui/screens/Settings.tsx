@@ -4,6 +4,7 @@ import { replaceAll, setDefaultBuffer } from '../../store/actions';
 import { fromBackup, isBadData, toBackup } from '../../store/schema';
 import { useData } from '../../store/store';
 import { Stepper } from '../components';
+import { count, listNames } from '../format';
 import type { AppUpdate } from '../update';
 
 export function SettingsScreen({ update }: { update: AppUpdate }) {
@@ -31,9 +32,9 @@ export function SettingsScreen({ update }: { update: AppUpdate }) {
   const importBackup = async (file: File) => {
     try {
       const next = fromBackup(await file.text());
-      const mornings = next.runs.filter((r) => r.finishedAt !== undefined).length;
-      const tasks = next.routines.reduce((n, r) => n + r.tasks.length, 0);
-      if (!confirm(`Replace everything in the app with this backup (${tasks} tasks, ${mornings} mornings)?`)) return;
+      const runs = next.runs.filter((r) => r.finishedAt !== undefined).length;
+      const summary = [count(next.flows.length, 'flow'), count(next.tasks.length, 'task'), count(runs, 'past run')];
+      if (!confirm(`Replace everything in the app with this backup (${listNames(summary)})?`)) return;
       replaceAll(next);
       setMessage('Backup imported.');
     } catch (e) {

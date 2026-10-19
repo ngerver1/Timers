@@ -12,7 +12,7 @@ export interface DropSuggestion {
 
 /**
  * Re-simulates every combination of the optional tasks still to do (there are
- * only ever a few) and picks the fewest drops that make `leaveBy`, cutting as
+ * only ever a few) and picks the fewest drops that make `finishBy`, cutting as
  * little as possible. Drops stay consistent: dropping a task drops optional
  * tasks that need it, and optional tasks that were only there to serve it
  * (no point turning the iron on if you're not ironing).
@@ -20,11 +20,11 @@ export interface DropSuggestion {
 export function suggestDrops(
   state: RunState,
   now: number,
-  leaveBy: number,
+  finishBy: number,
   maxCandidates = 10,
 ): DropSuggestion | undefined {
   const base = projectState(state, now);
-  if (base.outTheDoor <= leaveBy) return undefined;
+  if (base.outTheDoor <= finishBy) return undefined;
   const pending = base.upcoming.map((s) => s.task);
   const candidates = pending.filter((t) => t.optional).slice(0, maxCandidates);
 
@@ -42,7 +42,7 @@ export function suggestDrops(
     const trial = cloneState(state);
     applySkip(trial, [...ids], now);
     const outTheDoor = projectState(trial, now).outTheDoor;
-    const option = { drop: pending.filter((t) => ids.has(t.id)), outTheDoor, onTime: outTheDoor <= leaveBy };
+    const option = { drop: pending.filter((t) => ids.has(t.id)), outTheDoor, onTime: outTheDoor <= finishBy };
     if (!best || better(option, best)) best = option;
   }
   return best;

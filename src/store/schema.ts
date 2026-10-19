@@ -1,16 +1,18 @@
 // The saved document. The whole thing is one versioned JSON object, which is
 // also the backup file format.
-import type { Id, Routine, Run, RunEvent, Task } from '../engine/types';
+import type { Ending, Flow, FlowItem, Id, PlanMode, Run, RunEvent, Task, TaskDef } from '../engine/types';
 
-export const STORE_VERSION = 1;
+export const STORE_VERSION = 2;
 
 export interface Plan {
-  /** The morning it's for, YYYY-MM-DD. */
+  /** The day it's for, YYYY-MM-DD. */
   date: string;
-  routineId: Id;
+  flowId: Id;
   optionalOn: Id[];
+  /** Which end is fixed: done by `time` (work back), or start at `time` (work forward). */
+  mode: PlanMode;
   /** Local "HH:MM". */
-  leaveBy?: string;
+  time?: string;
   bufferMin: number;
 }
 
@@ -21,14 +23,16 @@ export interface Settings {
 
 export interface StoreData {
   version: typeof STORE_VERSION;
-  routines: Routine[];
-  activeRoutineId: Id;
+  /** Your shared task list; flows pick from it. */
+  tasks: TaskDef[];
+  flows: Flow[];
+  /** The flow you last picked. */
+  activeFlowId: Id;
   plans: Plan[];
-  /** Finished mornings, plus the one in progress. */
+  /** Finished runs, plus the one in progress. */
   runs: Run[];
   activeRunId?: Id;
   settings: Settings;
-  lastLeaveBy?: string;
 }
 
 export function newId(): Id {
@@ -37,7 +41,7 @@ export function newId(): Id {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-/** The placeholder routine from the brief, to edit in the app. */
+/** The placeholder morning from the brief, to edit in the app. */
 export function seedData(): StoreData {
   const rows: [name: string, handsOnMin: number, waitMin: number, optional: boolean, after: string[]][] = [
     ['Brush teeth', 3, 0, false, []],
@@ -53,19 +57,24 @@ export function seedData(): StoreData {
     ['Pack bag', 5, 0, true, []],
   ];
   const ids = new Map(rows.map(([name]) => [name, newId()]));
-  const tasks: Task[] = rows.map(([name, handsOnMin, waitMin, optional, after]) => ({
+  const tasks: TaskDef[] = rows.map(([name, handsOnMin, waitMin, , after]) => ({
     id: ids.get(name)!,
     name,
     handsOnSec: handsOnMin * 60,
     waitSec: waitMin * 60,
     after: after.map((n) => ids.get(n)!),
-    optional,
   }));
-  const routine: Routine = { id: newId(), name: 'Morning', tasks };
+  const flow: Flow = {
+    id: newId(),
+    name: 'Morning',
+    ending: 'leave',
+    items: rows.map(([name, , , optional]) => ({ taskId: ids.get(name)!, optional })),
+  };
   return {
     version: STORE_VERSION,
-    routines: [routine],
-    activeRoutineId: routine.id,
+    tasks,
+    flows: [flow],
+    activeFlowId: flow.id,
     plans: [],
     runs: [],
     settings: { bufferMin: 10 },
@@ -88,7 +97,7 @@ const arr = <T>(v: unknown, what: string, item: (x: unknown) => T): T[] =>
   Array.isArray(v) ? v.map(item) : fail(what);
 const strs = (v: unknown, what: string) => arr(v, what, (x) => str(x, what));
 
-function task(v: unknown): Task {
+function taskDef(v: unknown): TaskDef {
   if (!isObj(v)) return fail('task');
   return {
     id: str(v.id, 'task id'),
@@ -96,8 +105,11 @@ function task(v: unknown): Task {
     handsOnSec: Math.max(0, num(v.handsOnSec, 'hands-on time')),
     waitSec: Math.max(0, num(v.waitSec, 'wait time')),
     after: strs(v.after, 'task rules'),
-    optional: v.optional === true,
   };
+}
+
+function task(v: unknown): Task {
+  return { ...taskDef(v), optional: isObj(v) && v.optional === true };
 }
 
 function event(v: unknown): RunEvent {
@@ -125,18 +137,40 @@ function event(v: unknown): RunEvent {
   }
 }
 
-function run(v: unknown): Run {
-  if (!isObj(v)) return fail('morning');
+const ending = (v: unknown): Ending => (v === 'done' ? 'done' : 'leave');
+const planMode = (v: unknown): PlanMode => (v === 'startAt' ? 'startAt' : 'doneBy');
+
+function item(v: unknown): FlowItem {
+  if (!isObj(v)) return fail('flow task');
+  return { taskId: str(v.taskId, 'flow task'), optional: v.optional === true };
+}
+
+function flow(v: unknown): Flow {
+  if (!isObj(v)) return fail('flow');
+  const usual = isObj(v.usual) ? { mode: planMode(v.usual.mode), time: str(v.usual.time, 'usual time') } : undefined;
   return {
-    id: str(v.id, 'morning id'),
-    routineId: str(v.routineId, 'morning routine'),
-    date: str(v.date, 'morning date'),
-    tasks: arr(v.tasks, 'morning tasks', task),
-    optionalOn: strs(v.optionalOn, 'morning options'),
-    leaveBy: optNum(v.leaveBy, 'leave-by'),
+    id: str(v.id, 'flow id'),
+    name: str(v.name, 'flow name'),
+    ending: ending(v.ending),
+    items: arr(v.items, 'flow tasks', item),
+    usual,
+  };
+}
+
+function run(v: unknown): Run {
+  if (!isObj(v)) return fail('run');
+  return {
+    id: str(v.id, 'run id'),
+    flowId: str(v.flowId, 'run flow'),
+    flowName: str(v.flowName, 'run flow name'),
+    ending: ending(v.ending),
+    date: str(v.date, 'run date'),
+    tasks: arr(v.tasks, 'run tasks', task),
+    optionalOn: strs(v.optionalOn, 'run options'),
+    finishBy: optNum(v.finishBy, 'finish-by'),
     startedAt: num(v.startedAt, 'start time'),
     finishedAt: optNum(v.finishedAt, 'finish time'),
-    events: arr(v.events, 'morning events', event),
+    events: arr(v.events, 'run events', event),
   };
 }
 
@@ -144,39 +178,98 @@ function plan(v: unknown): Plan {
   if (!isObj(v)) return fail('plan');
   return {
     date: str(v.date, 'plan date'),
-    routineId: str(v.routineId, 'plan routine'),
+    flowId: str(v.flowId, 'plan flow'),
     optionalOn: strs(v.optionalOn, 'plan options'),
-    leaveBy: optStr(v.leaveBy, 'plan leave-by'),
+    mode: planMode(v.mode),
+    time: optStr(v.time, 'plan time'),
     bufferMin: num(v.bufferMin, 'plan buffer'),
   };
 }
 
-/** Checks and tidies a parsed document. Throws a readable error if it isn't one. */
+/**
+ * Version 1 had a single list of tasks per routine. Each routine becomes a flow
+ * using the same tasks, in the same order, with the same optional switches;
+ * task ids are kept, so history and usual times carry straight over.
+ */
+function fromV1(v: Record<string, unknown>): Omit<StoreData, 'settings' | 'activeRunId'> {
+  const routines = arr(v.routines, 'routines', (r) => {
+    if (!isObj(r)) return fail('routine');
+    return { id: str(r.id, 'routine id'), name: str(r.name, 'routine name'), tasks: arr(r.tasks, 'tasks', task) };
+  });
+  const lastLeaveBy = optStr(v.lastLeaveBy, 'last leave-by');
+  const defs = new Map<Id, TaskDef>();
+  for (const r of routines) for (const { optional: _, ...def } of r.tasks) if (!defs.has(def.id)) defs.set(def.id, def);
+  const names = new Map(routines.map((r) => [r.id, r.name]));
+  return {
+    version: STORE_VERSION,
+    tasks: [...defs.values()],
+    flows: routines.map((r) => ({
+      id: r.id,
+      name: r.name,
+      ending: 'leave' as const,
+      items: r.tasks.map((t) => ({ taskId: t.id, optional: t.optional })),
+      usual: lastLeaveBy ? { mode: 'doneBy' as const, time: lastLeaveBy } : undefined,
+    })),
+    activeFlowId: str(v.activeRoutineId, 'active routine'),
+    plans: arr(v.plans, 'plans', (p) => {
+      if (!isObj(p)) return fail('plan');
+      return {
+        date: str(p.date, 'plan date'),
+        flowId: str(p.routineId, 'plan routine'),
+        optionalOn: strs(p.optionalOn, 'plan options'),
+        mode: 'doneBy' as const,
+        time: optStr(p.leaveBy, 'plan leave-by'),
+        bufferMin: num(p.bufferMin, 'plan buffer'),
+      };
+    }),
+    runs: arr(v.runs, 'mornings', (x) => {
+      if (!isObj(x)) return fail('morning');
+      const routineId = str(x.routineId, 'morning routine');
+      return run({
+        ...x,
+        flowId: routineId,
+        flowName: names.get(routineId) ?? 'Morning',
+        ending: 'leave',
+        finishBy: x.leaveBy,
+      });
+    }),
+  };
+}
+
+/** Checks and tidies a parsed document, migrating older versions. Throws a readable error if it isn't one. */
 export function validateData(v: unknown): StoreData {
   if (!isObj(v)) return fail('not an object');
   if (typeof v.version !== 'number') return fail('no version');
   if (v.version > STORE_VERSION) {
     throw new BadData('This backup is from a newer version of the app. Update the app, then import again.');
   }
-  // Older versions get migrated here once there are any.
-  const routines = arr(v.routines, 'routines', (r): Routine => {
-    if (!isObj(r)) return fail('routine');
-    return { id: str(r.id, 'routine id'), name: str(r.name, 'routine name'), tasks: arr(r.tasks, 'tasks', task) };
+  const body =
+    v.version === 1
+      ? fromV1(v)
+      : {
+          version: STORE_VERSION,
+          tasks: arr(v.tasks, 'tasks', taskDef),
+          flows: arr(v.flows, 'flows', flow),
+          activeFlowId: str(v.activeFlowId, 'active flow'),
+          plans: arr(v.plans, 'plans', plan),
+          runs: arr(v.runs, 'runs', run),
+        };
+  if (body.flows.length === 0) return fail('no flows');
+  // A flow only lists tasks that exist, each once.
+  const known = new Set(body.tasks.map((t) => t.id));
+  const flows = body.flows.map((f) => {
+    const seen = new Set<Id>();
+    return { ...f, items: f.items.filter((i) => known.has(i.taskId) && !seen.has(i.taskId) && seen.add(i.taskId)) };
   });
-  if (routines.length === 0) return fail('no routines');
-  const activeRoutineId = str(v.activeRoutineId, 'active routine');
-  const runs = arr(v.runs, 'mornings', run);
-  const activeRunId = optStr(v.activeRunId, 'active morning');
+  const activeRunId = optStr(v.activeRunId, 'active run');
   const settings = isObj(v.settings) ? v.settings : fail('settings');
   return {
+    ...body,
     version: STORE_VERSION,
-    routines,
-    activeRoutineId: routines.some((r) => r.id === activeRoutineId) ? activeRoutineId : routines[0]!.id,
-    plans: arr(v.plans, 'plans', plan),
-    runs,
-    activeRunId: runs.some((r) => r.id === activeRunId && r.finishedAt === undefined) ? activeRunId : undefined,
+    flows,
+    activeFlowId: flows.some((f) => f.id === body.activeFlowId) ? body.activeFlowId : flows[0]!.id,
+    activeRunId: body.runs.some((r) => r.id === activeRunId && r.finishedAt === undefined) ? activeRunId : undefined,
     settings: { bufferMin: num(settings.bufferMin, 'buffer') },
-    lastLeaveBy: optStr(v.lastLeaveBy, 'last leave-by'),
   };
 }
 

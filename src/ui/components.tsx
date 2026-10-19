@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { switchOff, switchOn } from '../engine/routine';
-import type { Id, Task } from '../engine/types';
+import type { Flow, Id, Task } from '../engine/types';
 import { storageStatus } from '../store/store';
 import { clockParts, listNames, slack, taskLength } from './format';
 
@@ -71,7 +71,7 @@ export function OptionalPicker(props: { tasks: Task[]; on: ReadonlySet<Id>; onCh
   const { tasks, on, onChange } = props;
   const optional = tasks.filter((t) => t.optional);
   if (optional.length === 0) {
-    return <p className="muted">No optional tasks. Mark some as optional on the Tasks tab.</p>;
+    return <p className="muted">No optional tasks. Mark some as optional on the Flows tab.</p>;
   }
   return (
     <div className="card list">
@@ -147,6 +147,27 @@ export function Stepper(props: {
   );
 }
 
+/** Chips for picking a flow. */
+export function FlowPicker(props: { flows: Flow[]; value: Id; onChange: (id: Id) => void; extra?: ReactNode }) {
+  return (
+    <div className="flow-picker" role="tablist" aria-label="Flows">
+      {props.flows.map((f) => (
+        <button
+          key={f.id}
+          type="button"
+          role="tab"
+          aria-selected={f.id === props.value}
+          className={`chip-button${f.id === props.value ? ' on' : ''}`}
+          onClick={() => props.onChange(f.id)}
+        >
+          {f.name}
+        </button>
+      ))}
+      {props.extra}
+    </div>
+  );
+}
+
 export function Segmented<T extends string>(props: { value: T; options: [T, string][]; onChange: (value: T) => void }) {
   return (
     <div className="segmented" role="radiogroup">
@@ -166,8 +187,8 @@ export function Segmented<T extends string>(props: { value: T; options: [T, stri
   );
 }
 
-export function SlackPill({ leaveBy, outAt }: { leaveBy: number; outAt: number }) {
-  const { text, tone } = slack(leaveBy, outAt);
+export function SlackPill({ finishBy, outAt }: { finishBy: number; outAt: number }) {
+  const { text, tone } = slack(finishBy, outAt);
   return <span className={`pill pill-${tone}`}>{text}</span>;
 }
 

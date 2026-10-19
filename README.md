@@ -1,50 +1,67 @@
 # Out the Door
 
-A phone web app that shows, live, when you'll be out of the house in the morning, updating as you tick tasks off.
-Installable, works offline, and keeps everything on the phone.
+A phone web app that shows, live, when you'll be out of the house in the morning (or done with dinner, or anything
+else you do as a list of tasks), updating as you tick tasks off. Installable, works offline, and keeps everything on
+the phone.
 
 Live at **https://ngerver1.github.io/Timers/**
 
+## Flows
+
+A flow is a list of tasks you run through, like Morning, Wake up or Dinner. Each flow has its own tasks, order and
+optional switches, picked from one shared task list: change Brush teeth's minutes and it changes in every flow that
+uses it. A flow ends one of two ways, which only changes the wording:
+
+- **Leaving the house**: "out the door" and "leave by"; Plan works out when to get up.
+- **Getting it done**: "done" and "done by", for things like dinner.
+
 ## Using it
 
-- **Today**: switch on today's optional tasks, set an optional leave-by time and tap **Start**. While it runs:
-  - the out-the-door time; tap it to switch between the time, a countdown, and both;
+- **Today**: pick a flow, switch on today's optional tasks, set an optional leave-by (or done-by) time and tap
+  **Start**. While it runs:
+  - the finish time; tap it to switch between the time, a countdown, and both;
   - how far the estimate has moved since Start (+/− vs plan) and, with a leave-by time, how much spare you have;
   - the current task with a countdown ring, **Done**, Skip, Edit and Undo, and −5/−1/+1/+5 buttons to change its
-    planned time for this morning (it's raining: short walk);
+    planned time for this run (it's raining: short walk);
   - when the current task runs over, the ring grows a red arc (full when you're over by the whole planned time) and
     the big display turns red with a live "Running over" timer;
-  - one-off tasks, and **Out the door** to finish and save.
-  - Tap any task in Up next (or Edit on the current one) to fix its name or minutes for this morning, and optionally
-    for future mornings too.
+  - one-off tasks, and **Out the door** (or **Finish**) to finish and save.
+  - Tap any task in Up next (or Edit on the current one) to fix its name or minutes for this run, and optionally for
+    next time too.
 
   The clock and current task stay pinned at the top and slim down while you scroll the list; scroll up a little and
   they expand again. The screen stays awake.
 
-- **Plan**: choose the optional tasks and leave-by time for a morning (tomorrow by default) and see when to get up.
-  That morning's Start screen is filled in from the plan.
-- **Tasks**: drag to reorder (the order is the priority); tap a task (the pencil) to change its name, minutes,
-  whether it's optional, and its "after" rules.
-- **History**: past mornings, and each task's usual time (median of the last 10 mornings) with one tap to adopt it.
+- **Plan**: like Google Maps' "Arrive by" and "Depart at". Pick a flow and a day, its optional tasks, and either the
+  time to be done by (it works back to when to start, and when to get up) or the time to start (it works out when
+  you'll be done). That day's Start screen is filled in from the plan, and each flow remembers its usual choice.
+- **Flows**: switch between flows or make a new one (empty, or with the same tasks as another). Drag to reorder (the
+  order is the priority); tap a task (the pencil) to change its name, minutes, whether it's optional in this flow,
+  and its "after" rules. **Add from other flows** reuses tasks you already have; Settings renames, changes how a
+  flow ends, or deletes it.
+- **History**: past runs of every flow, and each task's usual time (median of the last 10 runs that included it)
+  with one tap to adopt it.
 - **Settings**: default get-up buffer, and backup export/import.
 
 ## How the estimate works
 
 - You are the only worker, so tasks never overlap.
 - Whenever you're free you do the first task in your order whose "after" tasks are finished.
-- Out the door is when the last task finishes. Live, it's always _now + what's left_: the current task is assumed to
-  have started at your last tap, so finishing early pulls the time in and running over pushes it out.
+- The finish (out the door) is when the last task finishes. Live, it's always _now + what's left_: the current task
+  is assumed to have started at your last tap, so finishing early pulls the time in and running over pushes it out.
 - Done taps up to 30 seconds apart count as one batch (you did a few things, then tapped them all). The time since you
   were last free is shared between them in proportion to their standard times, in the order you tapped them.
-- Skip means "not today"; rules pointing at a skipped or switched-off task are ignored. Switching an optional task on
-  also switches on optional tasks it needs; switching one off also switches off optional tasks that need it.
+- Skip means "not today"; rules pointing at a skipped or switched-off task, or at a task the flow doesn't use, are
+  ignored. Switching an optional task on also switches on optional tasks it needs; switching one off also switches
+  off optional tasks that need it.
 - When you're behind, the app re-simulates combinations of the optional tasks still to do and suggests the fewest
-  drops that get you back to your leave-by time.
+  drops that get you back to your leave-by (or done-by) time.
 
 ## Data
 
 Everything is stored on the phone (localStorage). Export a backup from Settings now and then; the backup file is the
-same versioned JSON document the app stores, so it can be imported on any device.
+same versioned JSON document the app stores, so it can be imported on any device. Data and backups from before flows
+(version 1) are moved over automatically: the old routine becomes a flow with the same tasks, and history carries on.
 
 ## Development
 
@@ -57,9 +74,10 @@ npm run format   # Prettier
 ```
 
 - `src/engine`: the scheduling engine, as pure functions with no UI code. `simulate.ts` is the single-worker
-  scheduler, `run.ts` folds a morning's taps and projects from the clock, `suggest.ts` picks drops, `plan.ts` works
-  back from a finish time, `learning.ts` does the medians.
-- `src/store`: the saved document, its validation and backup format, and the actions that change it.
+  scheduler, `run.ts` folds a run's taps and projects from the clock, `suggest.ts` picks drops, `plan.ts` works back
+  from a finish time or forward from a start time, `learning.ts` does the medians.
+- `src/store`: the saved document (a shared task list plus flows), its validation, migration and backup format, and
+  the actions that change it.
 - `src/ui`: screens and components.
 
 Every push runs the tests (`.github/workflows/ci.yml`); pushes to `main` also deploy to GitHub Pages.
@@ -71,6 +89,5 @@ Every push runs the tests (`.github/workflows/ci.yml`); pushes to `main` also de
   brings back the wait field and labels; `src/ui/alerts.ts` is already called whenever a wait finishes, ready for
   vibration, a chime and a spoken "Coffee's ready".
 - **Appointments**: `latestStart` in `src/engine/plan.ts` already works back from a fixed finish time.
-- **Sync and stand mode**: a morning is an append-only log of taps, so devices can share it. Storage is isolated in
+- **Sync and stand mode**: a run is an append-only log of taps, so devices can share it. Storage is isolated in
   `src/store/store.ts`.
-- **Several routines**: the data model holds a list of routines; the app shows one.

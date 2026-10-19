@@ -1,6 +1,6 @@
-// Working back from a fixed finish time (leave-by now, appointments later).
+// Fixing one end of a flow and working out the other, like Google Maps'
+// "Arrive by" (done by) and "Depart at" (start at).
 import { simulate } from './simulate';
-import { MINUTE } from './time';
 import type { Task } from './types';
 
 /** How long the tasks take from a standing start, waits included (ms). */
@@ -17,6 +17,7 @@ export function latestStart(tasks: readonly Task[], finishBy: number): number {
   return finishBy - routineLength(tasks);
 }
 
-export function getUpTime(tasks: readonly Task[], leaveBy: number, bufferMin: number): number {
-  return latestStart(tasks, leaveBy) - bufferMin * MINUTE;
+/** When you'll be done if you start at `start`. */
+export function finishFrom(tasks: readonly Task[], start: number): number {
+  return start + routineLength(tasks);
 }

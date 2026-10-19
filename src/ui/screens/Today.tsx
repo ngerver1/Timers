@@ -5,9 +5,9 @@ import { foldRun, lastUndoable, plannedFinish, projectState, type DoneTask, type
 import type { Slot } from '../../engine/simulate';
 import { suggestDrops, type DropSuggestion } from '../../engine/suggest';
 import { ceilMinute, dateKey, upcomingTime } from '../../engine/time';
-import type { Id, Run, Task } from '../../engine/types';
+import type { Ending, Flow, Id, Run, Task } from '../../engine/types';
 import {
-  activeRoutine,
+  activeFlow,
   activeRun,
   addOneOff,
   discardRun,
@@ -15,16 +15,20 @@ import {
   finishRun,
   finishedRuns,
   planFor,
-  saveTask,
+  saveTaskDef,
+  selectFlow,
   skipTasks,
   startRun,
   tapDone,
+  tasksOf,
   undoLast,
 } from '../../store/actions';
+import { flowsUsing, offeredFinishBy } from '../../store/flows';
 import { useData } from '../../store/store';
 import { forSchedule } from '../../features';
 import {
   BigClock,
+  FlowPicker,
   Icon,
   OptionalPicker,
   Segmented,
@@ -47,6 +51,7 @@ import {
   taskLength,
   taskProgress,
   timer,
+  words,
 } from '../format';
 import {
   HERO_MODES,
@@ -63,38 +68,44 @@ export function TodayScreen() {
   const now = useNow(1000);
   const run = activeRun(data);
   if (run) return <RunningView run={run} now={now} />;
-  return <StartView key={dateKey(now)} now={now} />;
+  const flow = activeFlow(data);
+  return <StartView key={`${dateKey(now)}-${flow.id}`} flow={flow} now={now} />;
 }
 
 // ---- Before Start ----
 
-/** Your choices survive a trip to another tab. */
-let draft: { date: string; on: Id[]; leaveBy: string } | undefined;
+/** Your choices for each flow survive a trip to another tab, until that day's plan changes. */
+const drafts = new Map<Id, { date: string; plan: string; on: Id[]; finishBy: string }>();
 
-function StartView({ now }: { now: number }) {
+function StartView({ flow, now }: { flow: Flow; now: number }) {
   const data = useData();
-  const routine = activeRoutine(data);
+  const flowTasks = tasksOf(data, flow);
+  const w = words(flow.ending);
   const today = dateKey(now);
-  const plan = planFor(data, today);
-  const [on, setOn] = useState(() =>
-    closeOver(routine.tasks, draft?.date === today ? draft.on : (plan?.optionalOn ?? [])),
-  );
-  const [leaveBy, setLeaveBy] = useState(() =>
-    draft?.date === today ? draft.leaveBy : (plan?.leaveBy ?? data.lastLeaveBy ?? ''),
-  );
+  const plan = planFor(data, today, flow.id);
+  const planKey = JSON.stringify(plan ?? null);
+  const [initial] = useState(() => {
+    const draft = drafts.get(flow.id);
+    if (draft?.date === today && draft.plan === planKey) return draft;
+    const on = closeOver(flowTasks, plan?.optionalOn ?? []);
+    return { on: [...on], finishBy: offeredFinishBy(flowTasks, on, plan ?? flow.usual, today) };
+  });
+  const [on, setOn] = useState(() => closeOver(flowTasks, initial.on));
+  const [finishBy, setFinishBy] = useState(initial.finishBy);
   useEffect(() => {
-    draft = { date: today, on: [...on], leaveBy };
-  }, [today, on, leaveBy]);
+    drafts.set(flow.id, { date: today, plan: planKey, on: [...on], finishBy });
+  }, [flow.id, today, planKey, on, finishBy]);
 
-  const selected = closeOver(routine.tasks, on); // tasks may have been edited since
-  const length = routineLength(forSchedule(activeTasks(routine.tasks, selected)));
+  const selected = closeOver(flowTasks, on); // tasks may have been edited since
+  const length = routineLength(forSchedule(activeTasks(flowTasks, selected)));
   const outAt = now + length;
-  const leaveAt = leaveBy ? upcomingTime(leaveBy, now) : undefined;
-  const earlier = finishedRuns(data).find((r) => r.date === today);
+  const finishAt = finishBy ? upcomingTime(finishBy, now) : undefined;
+  const earlier = finishedRuns(data).find((r) => r.date === today && r.flowId === flow.id);
+  const several = data.flows.length > 1;
 
   const start = () => {
-    draft = undefined;
-    startRun(selected, leaveBy || undefined);
+    drafts.delete(flow.id);
+    startRun(selected, finishBy || undefined);
   };
 
   return (
@@ -103,18 +114,23 @@ function StartView({ now }: { now: number }) {
         <h1>{dayLabel(today)}</h1>
         {plan && <span className="chip">From your plan</span>}
       </header>
+      {several && <FlowPicker flows={data.flows} value={flow.id} onChange={selectFlow} />}
       {earlier?.finishedAt !== undefined && (
         <p className="card pad note">
-          You were out the door at {clock(earlier.finishedAt)}
-          {earlier.leaveBy !== undefined && `, ${earlyLate(earlier.leaveBy, earlier.finishedAt)}`}.
+          You were {words(earlier.ending).finishedAt} {clock(earlier.finishedAt)}
+          {earlier.finishBy !== undefined && `, ${earlyLate(earlier.finishBy, earlier.finishedAt)}`}.
         </p>
       )}
-      <section>
-        <h2 className="section-title">Optional today</h2>
-        <OptionalPicker tasks={routine.tasks} on={selected} onChange={setOn} />
-      </section>
+      {flowTasks.length === 0 ? (
+        <p className="card pad note">{flow.name} has no tasks yet. Add some on the Flows tab.</p>
+      ) : (
+        <section>
+          <h2 className="section-title">Optional today</h2>
+          <OptionalPicker tasks={flowTasks} on={selected} onChange={setOn} />
+        </section>
+      )}
       <section className="card pad">
-        <TimeField label="Leave by" value={leaveBy} onChange={setLeaveBy} />
+        <TimeField label={w.by} value={finishBy} onChange={setFinishBy} />
       </section>
       <section className="card pad summary">
         <div className="summary-line">
@@ -122,18 +138,20 @@ function StartView({ now }: { now: number }) {
           <strong>{duration(length / 1000)}</strong>
         </div>
         <div className="summary-line">
-          <span>Start now, out by</span>
+          <span>Start now, {w.finishedAt}</span>
           <strong>{clock(ceilMinute(outAt))}</strong>
         </div>
-        {leaveAt !== undefined && (
+        {finishAt !== undefined && (
           <div className="summary-line">
-            <span>Leave by {clock(leaveAt)}</span>
-            <SlackPill leaveBy={leaveAt} outAt={outAt} />
+            <span>
+              {w.by} {clock(finishAt)}
+            </span>
+            <SlackPill finishBy={finishAt} outAt={outAt} />
           </div>
         )}
       </section>
-      <button type="button" className="btn btn-primary btn-huge" onClick={start}>
-        Start
+      <button type="button" className="btn btn-primary btn-huge" onClick={start} disabled={flowTasks.length === 0}>
+        {several ? `Start ${flow.name}` : 'Start'}
       </button>
     </div>
   );
@@ -165,13 +183,14 @@ function RunningView({ run, now }: { run: Run; now: number }) {
   const header = useCollapsingHeader();
 
   const p = projectState(state, now);
-  const suggestion = run.leaveBy !== undefined ? suggestDrops(state, now, run.leaveBy) : undefined;
+  const suggestion = run.finishBy !== undefined ? suggestDrops(state, now, run.finishBy) : undefined;
   const later = p.current ? p.upcoming.slice(1) : p.upcoming;
   const stale = now - run.startedAt > 12 * 3_600_000;
+  const w = words(run.ending);
 
-  const outTheDoor = () => {
+  const finish = () => {
     const left = p.upcoming.length;
-    if (left > 0 && !confirm(`${left} task${left > 1 ? 's' : ''} not done. Out the door anyway?`)) return;
+    if (left > 0 && !confirm(`${left} task${left > 1 ? 's' : ''} not done. ${w.finishButton} anyway?`)) return;
     finishRun();
   };
 
@@ -191,21 +210,23 @@ function RunningView({ run, now }: { run: Run; now: number }) {
           mode={mode}
           onCycle={cycleMode}
         />
-        <NowCard p={p} now={now} canUndo={lastUndoable(run) !== undefined} onEdit={setEditing} />
+        <NowCard p={p} now={now} ending={run.ending} canUndo={lastUndoable(run) !== undefined} onEdit={setEditing} />
       </div>
       <div style={{ height: header.spacerHeight }} aria-hidden="true" />
 
       <div className="stack">
         {stale && <StaleRun run={run} />}
 
-        {suggestion && run.leaveBy !== undefined && <DropCard suggestion={suggestion} leaveBy={run.leaveBy} />}
+        {suggestion && run.finishBy !== undefined && (
+          <DropCard suggestion={suggestion} finishBy={run.finishBy} ending={run.ending} />
+        )}
 
         <div className="action-row">
           <button type="button" className="btn" onClick={() => setAdding(true)}>
             <Icon name="plus" size={20} /> One-off task
           </button>
-          <button type="button" className="btn btn-door" onClick={outTheDoor}>
-            Out the door
+          <button type="button" className="btn btn-door" onClick={finish}>
+            {w.finishButton}
           </button>
         </div>
 
@@ -239,9 +260,9 @@ function RunningView({ run, now }: { run: Run; now: number }) {
         <button
           type="button"
           className="btn btn-quiet danger-text"
-          onClick={() => confirm("Discard this morning? It won't be saved to History.") && discardRun()}
+          onClick={() => confirm("Discard this run? It won't be saved to History.") && discardRun()}
         >
-          Discard this morning
+          Discard this run
         </button>
       </div>
 
@@ -251,7 +272,7 @@ function RunningView({ run, now }: { run: Run; now: number }) {
   );
 }
 
-/** The big out-the-door display. Tapping it cycles time, countdown and both. */
+/** The big finish-time display. Tapping it cycles time, countdown and both. */
 function Hero(props: {
   run: Run;
   outTheDoor: number;
@@ -263,18 +284,21 @@ function Hero(props: {
   onCycle: () => void;
 }) {
   const { run, outTheDoor, planned, now, overMs, mode } = props;
+  const data = useData();
+  const w = words(run.ending);
   const outAt = ceilMinute(outTheDoor);
   const countdown = timer(Math.ceil((outTheDoor - now) / 1000) * 1000);
   const change = drift(outTheDoor, planned);
+  const label = mode === 'countdown' ? w.finishIn : w.finish;
   return (
     <section className={`hero hero-${mode}${overMs > 0 ? ' hero-over' : ''}`}>
       <button
         type="button"
         className="hero-main"
         onClick={props.onCycle}
-        aria-label={`Out the door at ${clock(outAt)}, in ${countdown}. Tap to switch the display.`}
+        aria-label={`${w.finish} at ${clock(outAt)}, in ${countdown}. Tap to switch the display.`}
       >
-        <span className="hero-label">{mode === 'countdown' ? 'Out the door in' : 'Out the door'}</span>
+        <span className="hero-label">{data.flows.length > 1 ? `${run.flowName} · ${label}` : label}</span>
         <span className="hero-figures">
           {mode !== 'countdown' && <BigClock ms={outAt} />}
           {mode !== 'time' && <span className="big-clock">{countdown}</span>}
@@ -288,10 +312,12 @@ function Hero(props: {
       </button>
       <div className="hero-sub">
         <span className={`pill pill-drift pill-${change.tone}`}>{change.text}</span>
-        {run.leaveBy !== undefined && (
+        {run.finishBy !== undefined && (
           <>
-            <SlackPill leaveBy={run.leaveBy} outAt={outTheDoor} />
-            <span className="muted hero-leave">leave by {clock(run.leaveBy)}</span>
+            <SlackPill finishBy={run.finishBy} outAt={outTheDoor} />
+            <span className="muted hero-leave">
+              {w.by.toLowerCase()} {clock(run.finishBy)}
+            </span>
           </>
         )}
       </div>
@@ -300,8 +326,15 @@ function Hero(props: {
 }
 
 /** The current task, with its Done button. Slims to one line while the list is scrolled. */
-function NowCard(props: { p: Projection; now: number; canUndo: boolean; onEdit: (task: Task) => void }) {
+function NowCard(props: {
+  p: Projection;
+  now: number;
+  ending: Ending;
+  canUndo: boolean;
+  onEdit: (task: Task) => void;
+}) {
   const { p, now, canUndo } = props;
+  const w = words(props.ending);
   const current = p.current;
   const next = p.upcoming[0];
   return (
@@ -309,7 +342,7 @@ function NowCard(props: { p: Projection; now: number; canUndo: boolean; onEdit: 
       <div className="now-top">
         <div className="now-text">
           <div className="now-label">{current ? 'Now' : p.allDone ? 'All done' : 'Nothing ready yet'}</div>
-          <div className="now-name">{current ? current.task.name : p.allDone ? 'Ready to go' : next?.task.name}</div>
+          <div className="now-name">{current ? current.task.name : p.allDone ? w.allDone : next?.task.name}</div>
           {current && <AdjustPlanned task={current.task} />}
           {!current && next && <div className="now-detail">can start at {clock(next.start)}</div>}
         </div>
@@ -326,7 +359,7 @@ function NowCard(props: { p: Projection; now: number; canUndo: boolean; onEdit: 
       )}
       {p.allDone && (
         <button type="button" className="btn btn-primary btn-done" onClick={() => finishRun()}>
-          Out the door
+          {w.finishButton}
         </button>
       )}
       <div className="now-actions">
@@ -350,7 +383,7 @@ function NowCard(props: { p: Projection; now: number; canUndo: boolean; onEdit: 
 
 const progressOf = (slot: Slot, now: number) => taskProgress(slot.task.handsOnSec * 1000, now - slot.start);
 
-/** Quick −/+ on the live task's planned time, for this morning only ("it's raining, short walk"). */
+/** Quick −/+ on the live task's planned time, for this run only ("it's raining, short walk"). */
 function AdjustPlanned({ task }: { task: Task }) {
   const nudge = (minutes: number) => {
     const sec = nudgedSeconds(task.handsOnSec, minutes);
@@ -445,18 +478,21 @@ function DoneRow({ done }: { done: DoneTask }) {
   );
 }
 
-function DropCard({ suggestion, leaveBy }: { suggestion: DropSuggestion; leaveBy: number }) {
+function DropCard(props: { suggestion: DropSuggestion; finishBy: number; ending: Ending }) {
+  const { suggestion } = props;
+  const w = words(props.ending);
   const names = listNames(suggestion.drop.map((t) => t.name));
   return (
     <section className="card pad suggest">
       <p>
         {suggestion.onTime ? (
           <>
-            Drop <strong>{names}</strong> to leave by {clock(leaveBy)}.
+            Drop <strong>{names}</strong> {w.toBeBy} {clock(props.finishBy)}.
           </>
         ) : (
           <>
-            Dropping <strong>{names}</strong> gets you closest: out by {clock(ceilMinute(suggestion.outTheDoor))}.
+            Dropping <strong>{names}</strong> gets you closest: {w.finishedAt}{' '}
+            {clock(ceilMinute(suggestion.outTheDoor))}.
           </>
         )}
       </p>
@@ -475,7 +511,9 @@ function StaleRun({ run }: { run: Run }) {
   const lastTap = Math.max(run.startedAt, ...run.events.map((e) => e.at));
   return (
     <section className="card pad note">
-      <p>The morning you started on {dayLabel(run.date)} is still open.</p>
+      <p>
+        {run.flowName} from {dayLabel(run.date)} is still open.
+      </p>
       <div className="action-row">
         <button type="button" className="btn" onClick={() => finishRun(lastTap)}>
           Save it to History
@@ -532,10 +570,11 @@ function AddOneOffSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** Fixes a task during a morning: for this morning, and optionally for future ones too. */
+/** Fixes a task during a run: for this run, and optionally for next time too. */
 function EditRunTaskSheet({ task, onClose }: { task: Task; onClose: () => void }) {
   const data = useData();
-  const inRoutine = activeRoutine(data).tasks.find((t) => t.id === task.id);
+  const def = data.tasks.find((t) => t.id === task.id);
+  const usedIn = flowsUsing(data.flows, task.id).map((f) => f.name);
   const [name, setName] = useState(task.name);
   const [minutes, setMinutes] = useState(minutesText(task.handsOnSec));
   const [alsoLater, setAlsoLater] = useState(true);
@@ -547,7 +586,7 @@ function EditRunTaskSheet({ task, onClose }: { task: Task; onClose: () => void }
     if (fixed.name !== task.name || fixed.handsOnSec !== task.handsOnSec) {
       editRunTask(task.id, fixed.name, fixed.handsOnSec);
     }
-    if (inRoutine && alsoLater) saveTask({ ...inRoutine, ...fixed });
+    if (def && alsoLater) saveTaskDef({ ...def, ...fixed });
     onClose();
   };
   return (
@@ -567,17 +606,17 @@ function EditRunTaskSheet({ task, onClose }: { task: Task; onClose: () => void }
           <span>Minutes</span>
           <input inputMode="decimal" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
         </label>
-        {inRoutine ? (
+        {def ? (
           <div className="card list">
             <Toggle
-              label="Also change it for future mornings"
-              hint="Updates it on the Tasks tab"
+              label="Also change it for next time"
+              hint={usedIn.length > 0 ? `Updates it in ${listNames(usedIn)}` : 'Updates it in your task list'}
               checked={alsoLater}
               onChange={setAlsoLater}
             />
           </div>
         ) : (
-          <p className="hint">A one-off task, so this only changes this morning.</p>
+          <p className="hint">A one-off task, so this only changes this run.</p>
         )}
         <button type="submit" className="btn btn-primary" disabled={!ok}>
           Save

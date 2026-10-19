@@ -1183,3 +1183,77 @@ p {
 .condensed .hero-alert {
   display: none;
 }
+
+/* ---- Flows ---- */
+
+.flow-picker {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -16px;
+  padding: 2px 16px;
+}
+
+.flow-picker::-webkit-scrollbar {
+  display: none;
+}
+
+.chip-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip-button.on {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+
+.chip-new {
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.flow-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flow-name {
+  font-size: 22px;
+}
+
+.add-row {
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  padding: 10px 12px 10px 16px;
+}
+
+.add-plus {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sheet .sheet-actions .btn {
+  flex: 1;
+}

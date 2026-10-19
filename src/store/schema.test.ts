@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { routineLength } from '../engine/plan';
 import { activeTasks } from '../engine/routine';
 import { add, done, editTask, makeRun, MIN, skip, task, undo } from '../engine/test-helpers';
+import { flowTasks, flowsUsing, ruleGraph } from './flows';
 import { fromBackup, seedData, toBackup, validateData } from './schema';
 
 describe('store schema', () => {
-  it('seeds the placeholder routine', () => {
-    const tasks = seedData().routines[0]!.tasks;
+  it('seeds the placeholder morning as one flow over a shared task list', () => {
+    const data = seedData();
+    const tasks = flowTasks(data.tasks, data.flows[0]!);
     expect(tasks.map((t) => t.name)).toEqual([
       'Brush teeth',
       'Make coffee',
@@ -20,12 +22,18 @@ describe('store schema', () => {
       'Do hair',
       'Pack bag',
     ]);
+    expect(tasks.filter((t) => t.optional).map((t) => t.name)).toEqual([
+      'Wash hair',
+      'Turn on iron',
+      'Iron clothes',
+      'Pack bag',
+    ]);
     const nameOf = (id: string) => tasks.find((t) => t.id === id)?.name;
     expect(tasks.find((t) => t.name === 'Iron clothes')!.after.map(nameOf)).toEqual(['Turn on iron', 'Get clothes']);
     expect(routineLength(activeTasks(tasks, new Set())) / MIN).toBe(46);
   });
 
-  it('round-trips through a backup file, mornings included', () => {
+  it('round-trips through a backup file, runs included', () => {
     const data = seedData();
     const tap = done('teeth', 3);
     data.runs.push({
@@ -36,6 +44,7 @@ describe('store schema', () => {
       ),
       finishedAt: 1,
     });
+    data.flows[0]!.usual = { mode: 'startAt', time: '06:30' };
     expect(fromBackup(toBackup(data))).toEqual(data);
   });
 
@@ -44,12 +53,111 @@ describe('store schema', () => {
     expect(() => fromBackup('{"app":"something-else"}')).toThrow(/backup/);
     expect(() => fromBackup(JSON.stringify({ app: 'out-the-door', data: { version: 99 } }))).toThrow(/newer version/);
     const broken = JSON.parse(toBackup(seedData()));
-    broken.data.routines[0].tasks[0].handsOnSec = 'three';
+    broken.data.tasks[0].handsOnSec = 'three';
     expect(() => fromBackup(JSON.stringify(broken))).toThrow(/hands-on/);
   });
 
-  it('forgets an in-progress morning that no longer exists', () => {
-    const data = { ...seedData(), activeRunId: 'gone' };
-    expect(validateData(JSON.parse(JSON.stringify(data))).activeRunId).toBeUndefined();
+  it('forgets an in-progress run that no longer exists, and tasks a flow lists twice or that are gone', () => {
+    const data = seedData();
+    const flow = data.flows[0]!;
+    flow.items = [flow.items[0]!, flow.items[0]!, { taskId: 'deleted', optional: false }];
+    const tidy = validateData(JSON.parse(JSON.stringify({ ...data, activeRunId: 'gone' })));
+    expect(tidy.activeRunId).toBeUndefined();
+    expect(tidy.flows[0]!.items).toEqual([flow.items[0]]);
+  });
+});
+
+describe('moving from version 1', () => {
+  // What the app saved before flows: one routine holding its own tasks.
+  const v1 = {
+    version: 1,
+    routines: [
+      {
+        id: 'r1',
+        name: 'Morning',
+        tasks: [
+          { id: 't1', name: 'Brush teeth', handsOnSec: 180, waitSec: 0, after: [], optional: false },
+          { id: 't2', name: 'Wash hair', handsOnSec: 600, waitSec: 0, after: [], optional: true },
+          { id: 't3', name: 'Do hair', handsOnSec: 600, waitSec: 0, after: ['t2'], optional: false },
+        ],
+      },
+    ],
+    activeRoutineId: 'r1',
+    plans: [{ date: '2026-10-20', routineId: 'r1', optionalOn: ['t2'], leaveBy: '07:45', bufferMin: 10 }],
+    runs: [
+      {
+        id: 'run1',
+        routineId: 'r1',
+        date: '2026-10-19',
+        tasks: [{ id: 't1', name: 'Brush teeth', handsOnSec: 180, waitSec: 0, after: [], optional: false }],
+        optionalOn: [],
+        leaveBy: 1_000,
+        startedAt: 0,
+        finishedAt: 500,
+        events: [{ id: 'e1', at: 200, type: 'done', taskId: 't1' }],
+      },
+    ],
+    settings: { bufferMin: 10 },
+    lastLeaveBy: '07:30',
+  };
+
+  it('turns the routine into a flow using the same tasks, order and optional switches', () => {
+    const data = validateData(v1);
+    expect(data.version).toBe(2);
+    expect(data.tasks).toEqual([
+      { id: 't1', name: 'Brush teeth', handsOnSec: 180, waitSec: 0, after: [] },
+      { id: 't2', name: 'Wash hair', handsOnSec: 600, waitSec: 0, after: [] },
+      { id: 't3', name: 'Do hair', handsOnSec: 600, waitSec: 0, after: ['t2'] },
+    ]);
+    expect(data.flows).toEqual([
+      {
+        id: 'r1',
+        name: 'Morning',
+        ending: 'leave',
+        items: [
+          { taskId: 't1', optional: false },
+          { taskId: 't2', optional: true },
+          { taskId: 't3', optional: false },
+        ],
+        usual: { mode: 'doneBy', time: '07:30' },
+      },
+    ]);
+    expect(data.activeFlowId).toBe('r1');
+  });
+
+  it('keeps plans and history, so usual times carry straight over', () => {
+    const data = validateData(v1);
+    expect(data.plans).toEqual([
+      { date: '2026-10-20', flowId: 'r1', optionalOn: ['t2'], mode: 'doneBy', time: '07:45', bufferMin: 10 },
+    ]);
+    expect(data.runs[0]).toMatchObject({ flowId: 'r1', flowName: 'Morning', ending: 'leave', finishBy: 1_000 });
+    expect(data.runs[0]!.events).toHaveLength(1);
+  });
+
+  it('migrates old backup files too', () => {
+    const file = JSON.stringify({ app: 'out-the-door', exportedAt: '2026-10-18T00:00:00Z', data: v1 });
+    expect(fromBackup(file).flows[0]!.name).toBe('Morning');
+  });
+});
+
+describe('flows', () => {
+  it('give the engine their own order and optional switches over shared tasks', () => {
+    const data = seedData();
+    const [teeth, coffee] = data.tasks;
+    const weekend = {
+      id: 'w',
+      name: 'Weekend',
+      ending: 'done' as const,
+      items: [
+        { taskId: coffee!.id, optional: true },
+        { taskId: teeth!.id, optional: false },
+      ],
+    };
+    expect(flowTasks(data.tasks, weekend).map((t) => [t.name, t.optional])).toEqual([
+      ['Make coffee', true],
+      ['Brush teeth', false],
+    ]);
+    expect(flowsUsing([data.flows[0]!, weekend], teeth!.id).map((f) => f.name)).toEqual(['Morning', 'Weekend']);
+    expect(ruleGraph(data.tasks)).toHaveLength(data.tasks.length);
   });
 });

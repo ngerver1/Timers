@@ -1,6 +1,6 @@
 // Display formatting. Uses the phone's locale (en-AU gives "7:45 am").
 import { ceilMinute, MINUTE } from '../engine/time';
-import type { Task } from '../engine/types';
+import type { Ending, Task } from '../engine/types';
 import { features } from '../features';
 
 const clockFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -79,9 +79,9 @@ export function taskLength(task: Pick<Task, 'handsOnSec' | 'waitSec'>): string {
     : duration(task.handsOnSec);
 }
 
-/** Estimate vs leave-by, both to the whole minute (the estimate rounded up). */
-export function slack(leaveBy: number, outAt: number): { text: string; tone: 'ahead' | 'even' | 'behind' } {
-  const diff = Math.round((leaveBy - ceilMinute(outAt)) / MINUTE);
+/** Estimate vs the finish-by time, both to the whole minute (the estimate rounded up). */
+export function slack(finishBy: number, outAt: number): { text: string; tone: 'ahead' | 'even' | 'behind' } {
+  const diff = Math.round((finishBy - ceilMinute(outAt)) / MINUTE);
   if (diff > 0) return { text: `${duration(diff * 60)} spare`, tone: 'ahead' };
   if (diff < 0) return { text: `${duration(-diff * 60)} behind`, tone: 'behind' };
   return { text: 'Right on time', tone: 'even' };
@@ -95,9 +95,9 @@ export function drift(outAt: number, planned: number): { text: string; tone: 'ah
   return { text: 'On plan', tone: 'even' };
 }
 
-/** For finished mornings: "4 min early", "3 min late", "on time". */
-export function earlyLate(leaveBy: number, outAt: number): string {
-  const diff = Math.round((leaveBy - outAt) / MINUTE);
+/** For finished runs: "4 min early", "3 min late", "on time". */
+export function earlyLate(finishBy: number, outAt: number): string {
+  const diff = Math.round((finishBy - outAt) / MINUTE);
   if (diff > 0) return `${duration(diff * 60)} early`;
   if (diff < 0) return `${duration(-diff * 60)} late`;
   return 'on time';
@@ -114,5 +114,31 @@ export function minutesText(sec: number): string {
   return String(Math.round((sec / 60) * 100) / 100);
 }
 
+/** "1 flow", "3 flows". */
+export const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`;
+
 export const listNames = (names: string[]): string =>
   names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+
+/** How a flow talks about finishing: a morning ends "out the door", dinner is just "done". */
+export function words(ending: Ending) {
+  return ending === 'leave'
+    ? {
+        finish: 'Out the door',
+        finishIn: 'Out the door in',
+        finishedAt: 'out the door at',
+        by: 'Leave by',
+        toBeBy: 'to leave by',
+        finishButton: 'Out the door',
+        allDone: 'Ready to go',
+      }
+    : {
+        finish: 'Done',
+        finishIn: 'Done in',
+        finishedAt: 'done at',
+        by: 'Done by',
+        toBeBy: 'to be done by',
+        finishButton: 'Finish',
+        allDone: "That's everything",
+      };
+}

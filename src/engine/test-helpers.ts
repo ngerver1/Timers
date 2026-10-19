@@ -65,14 +65,16 @@ export const undo = (target: RunEvent, min: number): RunEvent => ({
   targetId: target.id,
 });
 
-export function makeRun(tasks: Task[], events: RunEvent[] = [], leaveByMin?: number): Run {
+export function makeRun(tasks: Task[], events: RunEvent[] = [], finishByMin?: number): Run {
   return {
     id: `run${++seq}`,
-    routineId: 'routine',
+    flowId: 'flow',
+    flowName: 'Morning',
+    ending: 'leave',
     date: '2026-10-19',
     tasks,
     optionalOn: tasks.filter((t) => t.optional).map((t) => t.id),
-    leaveBy: leaveByMin === undefined ? undefined : at(leaveByMin),
+    finishBy: finishByMin === undefined ? undefined : at(finishByMin),
     startedAt: T0,
     events,
   };

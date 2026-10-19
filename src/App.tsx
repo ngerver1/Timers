@@ -5,22 +5,22 @@ import { Icon, StorageBanners, type IconName } from './ui/components';
 import { HistoryScreen } from './ui/screens/History';
 import { PlanScreen } from './ui/screens/Plan';
 import { SettingsScreen } from './ui/screens/Settings';
-import { TasksScreen } from './ui/screens/Tasks';
+import { FlowsScreen } from './ui/screens/Flows';
 import { TodayScreen } from './ui/screens/Today';
 import { useAppUpdate } from './ui/update';
 
-type Tab = 'today' | 'plan' | 'tasks' | 'history' | 'settings';
+type Tab = 'today' | 'plan' | 'flows' | 'history' | 'settings';
 
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: 'today', label: 'Today', icon: 'today' },
   { id: 'plan', label: 'Plan', icon: 'plan' },
-  { id: 'tasks', label: 'Tasks', icon: 'tasks' },
+  { id: 'flows', label: 'Flows', icon: 'tasks' },
   { id: 'history', label: 'History', icon: 'history' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
 function tabFromHash(): Tab {
-  const id = location.hash.replace(/^#\/?/, '');
+  const id = location.hash.replace(/^#\/?/, '').replace(/^tasks$/, 'flows'); // the tab used to be Tasks
   return TABS.find((t) => t.id === id)?.id ?? 'today';
 }
 
@@ -55,7 +55,7 @@ export function App() {
         )}
         {tab === 'today' && <TodayScreen />}
         {tab === 'plan' && <PlanScreen />}
-        {tab === 'tasks' && <TasksScreen />}
+        {tab === 'flows' && <FlowsScreen />}
         {tab === 'history' && <HistoryScreen />}
         {tab === 'settings' && <SettingsScreen update={update} />}
       </main>
