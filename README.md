@@ -23,8 +23,8 @@ uses it. A flow ends one of two ways, which only changes the wording:
   - how far the estimate has moved since Start (+/− vs plan) and, with a leave-by time, how much spare you have;
   - the current task with a countdown ring, **Done**, Skip, Edit and Undo, and −5/−1/+1/+5 buttons to change its
     planned time for this run (it's raining: short walk);
-  - when the current task runs over, the ring grows a red arc (full when you're over by the whole planned time) and
-    the big display turns red with a live "Running over" timer;
+  - when the current task runs over, the ring grows an amber arc (full when you're over by the whole planned time)
+    and a quiet "Running over" line under the clock counts up. Red is kept for being behind your leave-by time;
   - one-off tasks, and **Out the door** (or **Finish**) to finish and save.
   - Tap any task in Up next (or Edit on the current one) to fix its name or minutes for this run, and optionally for
     next time too.
@@ -39,8 +39,15 @@ uses it. A flow ends one of two ways, which only changes the wording:
   order is the priority); tap a task (the pencil) to change its name, minutes, whether it's optional in this flow,
   and its "after" rules. **Add from other flows** reuses tasks you already have; Settings renames, changes how a
   flow ends, or deletes it.
-- **History**: past runs of every flow, and each task's usual time (median of the last 10 runs that included it)
-  with one tap to adopt it.
+- **History**, one flow at a time (including deleted flows that still have runs):
+  - the typical run time, how runs usually compare with the plan at Start, and how often you made your leave-by
+    (or done-by) time, over the last 10 runs;
+  - a chart of the last 14 runs' total times, each with a tick at what the plan at Start said; tap a column for its
+    details;
+  - insights: whether the flow is getting quicker or taking longer (the last 5 runs against the 5 before), and the
+    task that runs over most, with one tap to use its usual time;
+  - past runs with their total time, tap one for its tasks;
+  - each task's usual time (median of the last 10 runs that included it) with one tap to adopt it.
 - **Settings**: default get-up buffer, and backup export/import.
 
 ## How the estimate works
@@ -75,7 +82,8 @@ npm run format   # Prettier
 
 - `src/engine`: the scheduling engine, as pure functions with no UI code. `simulate.ts` is the single-worker
   scheduler, `run.ts` folds a run's taps and projects from the clock, `suggest.ts` picks drops, `plan.ts` works back
-  from a finish time or forward from a start time, `learning.ts` does the medians.
+  from a finish time or forward from a start time, `learning.ts` does the medians, `insights.ts` works out run
+  times, the summary and the trend for History.
 - `src/store`: the saved document (a shared task list plus flows), its validation, migration and backup format, and
   the actions that change it.
 - `src/ui`: screens and components.

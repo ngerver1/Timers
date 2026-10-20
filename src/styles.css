@@ -15,6 +15,11 @@
   --danger-soft: #fbe8e8;
   --warn: #9a6210;
   --warn-soft: #fbf0db;
+  /* A task running long: a heads-up, not an alarm. Red is kept for missing the finish-by time. */
+  --over: #c97f12;
+  /* History chart: the run you're looking at, and the rest. */
+  --chart-on: #1e8f4e;
+  --chart-rest: #84909d;
   --radius: 18px;
   --tabbar-h: 64px;
   font-family:
@@ -42,6 +47,9 @@
     --danger-soft: #3b1e20;
     --warn: #f2b453;
     --warn-soft: #3a2c15;
+    --over: #f2b453;
+    --chart-on: #2fae6a;
+    --chart-rest: #6b7785;
   }
 }
 
@@ -566,6 +574,10 @@ p {
   color: var(--muted);
 }
 
+.pill-drift.pill-behind {
+  color: var(--warn);
+}
+
 .summary {
   display: flex;
   flex-direction: column;
@@ -721,7 +733,7 @@ p {
   flex: 1;
 }
 
-/* Countdown ring: drains over the planned time, then goes red and counts up. */
+/* Countdown ring: drains over the planned time, then an amber arc grows and it counts up. */
 
 .task-timer {
   position: relative;
@@ -756,7 +768,7 @@ p {
 }
 
 .task-timer.over .fill {
-  stroke: var(--danger);
+  stroke: var(--over);
 }
 
 .task-timer-text {
@@ -776,7 +788,7 @@ p {
 }
 
 .task-timer.over .task-timer-text {
-  color: var(--danger);
+  color: var(--warn);
 }
 
 /* Slim header while scrolling down; any scroll up brings the full one back. */
@@ -867,7 +879,7 @@ p {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: var(--danger-soft);
+  background: var(--warn-soft);
   border-color: transparent;
 }
 
@@ -955,8 +967,9 @@ p {
 
 /* ---- History ---- */
 
-.run-card {
-  overflow: hidden;
+.show-more {
+  width: 100%;
+  margin-top: 4px;
 }
 
 .run-card summary {
@@ -964,8 +977,29 @@ p {
   padding: 14px 16px;
   cursor: pointer;
   display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.run-summary-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.run-took {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.run-took strong {
+  font-size: 22px;
+  line-height: 1.2;
 }
 
 .run-card summary::-webkit-details-marker {
@@ -1100,7 +1134,7 @@ p {
   width: 9px;
   height: 9px;
   border-radius: 999px;
-  background: var(--danger);
+  background: var(--accent);
   border: 2px solid var(--surface);
 }
 
@@ -1168,15 +1202,24 @@ p {
   color: var(--muted);
 }
 
-.hero-over .hero-figures .big-clock {
-  color: var(--danger);
+/* The clock keeps its colour when a task runs long; a quiet line underneath keeps it from looking frozen. */
+.hero-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
-.hero-alert {
-  margin-top: 6px;
-  font-weight: 700;
-  color: var(--danger);
-  font-variant-numeric: tabular-nums;
+.hero-alert::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--over);
 }
 
 .condensed .now-adjust,
@@ -1256,4 +1299,178 @@ p {
 
 .sheet .sheet-actions .btn {
   flex: 1;
+}
+
+/* ---- History: stats, chart and insights ---- */
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.stat-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.stat-value {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.stat-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.chart {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chart-readout-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chart-readout-top strong {
+  font-size: 22px;
+}
+
+.chart-readout .muted {
+  font-size: 14px;
+}
+
+.chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.chart-grid,
+.chart-axis {
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.chart-grid {
+  stroke: var(--line);
+}
+
+.chart-axis {
+  stroke: var(--muted);
+  stroke-opacity: 0.5;
+}
+
+.chart-tick {
+  font-size: 11px;
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-hit {
+  cursor: pointer;
+  outline: none;
+}
+
+.chart-hit-area {
+  fill: transparent;
+}
+
+.chart-hit:focus-visible .chart-hit-area {
+  fill: var(--surface-2);
+  fill-opacity: 0.6;
+}
+
+/* Only where there's a real pointer: on a phone, :hover sticks after a tap. */
+@media (hover: hover) {
+  .chart-hit:hover .chart-hit-area {
+    fill: var(--surface-2);
+    fill-opacity: 0.6;
+  }
+}
+
+.chart-col {
+  fill: var(--chart-rest);
+}
+
+.chart-col.on {
+  fill: var(--chart-on);
+}
+
+.chart-plan,
+.chart-plan-halo {
+  stroke-linecap: round;
+}
+
+.chart-plan {
+  stroke: var(--text);
+  stroke-width: 2;
+}
+
+.chart-plan-halo {
+  stroke: var(--surface);
+  stroke-width: 5;
+}
+
+.chart-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  font-size: 13px;
+}
+
+.chart-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.key-col {
+  width: 10px;
+  height: 12px;
+  border-radius: 3px 3px 0 0;
+  background: var(--chart-rest);
+}
+
+.key-plan {
+  width: 14px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--text);
+}
+
+.chart-key .muted {
+  margin-left: auto;
+}
+
+.insight {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.insight p {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+.insight .btn {
+  margin-left: auto;
 }

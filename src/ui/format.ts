@@ -5,6 +5,7 @@ import { features } from '../features';
 
 const clockFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 const dayFormat = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+const shortDayFormat = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' });
 
 /** "7:45" and "am" separately, so the period can be set smaller. */
 export function clockParts(ms: number): { time: string; period: string } {
@@ -28,6 +29,15 @@ export function dayLabel(day: string): string {
   const [y = 1970, m = 1, d = 1] = day.split('-').map(Number);
   return dayFormat.format(new Date(y, m - 1, d)).replace(',', '');
 }
+
+/** "19 Oct", for chart axes. */
+export function shortDay(day: string): string {
+  const [y = 1970, m = 1, d = 1] = day.split('-').map(Number);
+  return shortDayFormat.format(new Date(y, m - 1, d));
+}
+
+/** A length in whole minutes: "51 min", "1 h 5 min". */
+export const minutes = (ms: number): string => duration(Math.round(ms / MINUTE) * 60);
 
 /** "3 min", "3½ min", "45 s", "1 min 20 s", "1 h 9½ min". */
 export function duration(sec: number): string {
@@ -128,6 +138,7 @@ export function words(ending: Ending) {
         finishIn: 'Out the door in',
         finishedAt: 'out the door at',
         by: 'Leave by',
+        byTime: 'leave-by time',
         toBeBy: 'to leave by',
         finishButton: 'Out the door',
         allDone: 'Ready to go',
@@ -137,6 +148,7 @@ export function words(ending: Ending) {
         finishIn: 'Done in',
         finishedAt: 'done at',
         by: 'Done by',
+        byTime: 'done-by time',
         toBeBy: 'to be done by',
         finishButton: 'Finish',
         allDone: "That's everything",
