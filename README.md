@@ -39,17 +39,21 @@ uses it. A flow ends one of two ways, which only changes the wording:
   order is the priority); tap a task (the pencil) to change its name, minutes, whether it's optional in this flow,
   and its "after" rules. **Add from other flows** reuses tasks you already have; Settings renames, changes how a
   flow ends, or deletes it.
-- **History**, one flow at a time (including deleted flows that still have runs):
+- **History** is split by flow. It opens on a card per flow (deleted flows that still have runs too): how long it
+  typically takes, how the last run went, and a sparkline of recent run times. Tap one for that flow's own page,
+  built only from its runs (Back returns to the cards):
   - the typical run time, how runs usually compare with the plan at Start, and how often you made your leave-by
     (or done-by) time, over the last 10 runs;
   - a chart of the last 14 runs' total times, each with a tick at what the plan at Start said; tap a column for its
     details;
   - insights: whether the flow is getting quicker or taking longer (the last 5 runs against the 5 before), and the
     task that runs over most, with one tap to use its usual time;
-  - past runs with their total time. Tap one (or **Timeline** under the chart) for a Gantt-style timeline of
+  - past runs with their total time (the newest 5, the rest a tap away). Tap one (or **Timeline** under the chart) for a Gantt-style timeline of
     what actually happened: a row per task on a clock axis, the bar from when you started it to when you finished,
     amber for time beyond its plan, a tick where it was planned to end, and a line at your leave-by time;
-  - each task's usual time (median of the last 10 runs that included it) with one tap to adopt it.
+  - **Task times**, folded away: each task's usual time in this flow (median of the flow's last 10 runs that
+    included it) with one tap to adopt it. The Flows tab shows the same per-flow usual times. A task's minutes are
+    shared by every flow that uses it, so adopting one changes it in those flows too.
 - **Settings**: default get-up buffer, and backup export/import.
 
 ## How the estimate works

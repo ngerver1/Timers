@@ -19,24 +19,32 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
+/** The tab is the first part of the hash: "#/history", or "#/history/<flow>" for one flow's history. */
 function tabFromHash(): Tab {
-  const id = location.hash.replace(/^#\/?/, '').replace(/^tasks$/, 'flows'); // the tab used to be Tasks
+  const id = (location.hash.replace(/^#\/?/, '').split('/')[0] ?? '').replace(/^tasks$/, 'flows'); // was Tasks
   return TABS.find((t) => t.id === id)?.id ?? 'today';
 }
 
 export function App() {
   const data = useData();
   const [tab, setTab] = useState<Tab>(tabFromHash);
+  // Tapping a tab starts it afresh (History goes back to all flows), even if it's the one you're on.
+  const [visit, setVisit] = useState(0);
   const update = useAppUpdate();
   const running = activeRun(data) !== undefined;
 
   useEffect(() => {
     void requestPersistence();
+    // Back from one flow's history (or from another tab opened there) lands on the tab in the address.
+    const onPop = () => setTab(tabFromHash());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   const go = (next: Tab) => {
     setTab(next);
-    history.replaceState(history.state, '', `#/${next}`);
+    setVisit((v) => v + 1);
+    history.replaceState(null, '', `#/${next}`);
     window.scrollTo(0, 0);
   };
 
@@ -56,7 +64,7 @@ export function App() {
         {tab === 'today' && <TodayScreen />}
         {tab === 'plan' && <PlanScreen />}
         {tab === 'flows' && <FlowsScreen />}
-        {tab === 'history' && <HistoryScreen />}
+        {tab === 'history' && <HistoryScreen key={visit} />}
         {tab === 'settings' && <SettingsScreen update={update} />}
       </main>
       <nav className="tabbar" aria-label="Screens">

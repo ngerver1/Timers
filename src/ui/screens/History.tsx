@@ -1,4 +1,4 @@
-import { useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import {
   biggestOverrun,
   minuteScale,
@@ -10,13 +10,14 @@ import {
   type Summary,
   type Trend,
 } from '../../engine/insights';
-import { LEARN_FROM, tidySeconds, usualTimes } from '../../engine/learning';
+import { LEARN_FROM, tidySeconds, usualTimes, type Usual } from '../../engine/learning';
 import { MINUTE } from '../../engine/time';
-import type { Ending, Flow, Id, Run } from '../../engine/types';
-import { deleteRun, finishedRuns, selectFlow, setHandsOn } from '../../store/actions';
+import type { Ending, Flow, Id, Run, TaskDef } from '../../engine/types';
+import { deleteRun, finishedRuns, setHandsOn } from '../../store/actions';
+import { flowsUsing } from '../../store/flows';
 import { useData } from '../../store/store';
-import { FlowPicker, Sheet } from '../components';
-import { clock, dayLabel, duration, earlyLate, minutes, shortDay, words } from '../format';
+import { Icon, Sheet } from '../components';
+import { clock, count, dayLabel, duration, earlyLate, listNames, minutes, shortDay, words } from '../format';
 import { UsualTime } from './Flows';
 import { RunTimeline } from './RunTimeline';
 
@@ -31,14 +32,128 @@ function historyFlows(flows: readonly Flow[], runs: readonly Run[]): Flow[] {
   return [...flows, ...gone.values()];
 }
 
+/** The flow in "#/history/<flow>", when you're looking at one flow's history. */
+function flowFromHash(): Id | undefined {
+  const m = /^#\/history\/(.+)$/.exec(location.hash);
+  return m?.[1] ? decodeURIComponent(m[1]) : undefined;
+}
+
+/**
+ * History is split by flow: an overview with a card per flow, and a page for
+ * each flow built only from that flow's runs. Back goes from a flow to the overview.
+ */
 export function HistoryScreen() {
   const data = useData();
   const finished = useMemo(() => finishedRuns(data), [data]);
-  const usual = useMemo(() => usualTimes(finished), [finished]);
   const choices = useMemo(() => historyFlows(data.flows, finished), [data.flows, finished]);
-  const [picked, setPicked] = useState(data.activeFlowId);
-  const flow = choices.find((f) => f.id === picked) ?? choices.find((f) => f.id === data.activeFlowId)!;
-  const times = useMemo(() => runTimes(finished.filter((r) => r.flowId === flow.id)), [finished, flow.id]);
+  const [viewing, setViewing] = useState(flowFromHash);
+  useEffect(() => {
+    const onPop = () => setViewing(flowFromHash());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  const only = choices.length === 1 ? choices[0] : undefined;
+  const flow = choices.find((f) => f.id === viewing) ?? only;
+  const runs = useMemo(() => finished.filter((r) => r.flowId === flow?.id), [finished, flow?.id]);
+
+  const open = (id: Id) => {
+    history.pushState({ historyFlow: id }, '', `#/history/${encodeURIComponent(id)}`);
+    setViewing(id);
+    window.scrollTo(0, 0);
+  };
+  const back = () => {
+    if ((history.state as { historyFlow?: Id } | null)?.historyFlow) {
+      history.back(); // the popstate listener shows the overview
+    } else {
+      history.replaceState(null, '', '#/history'); // opened straight from the address
+      setViewing(undefined);
+    }
+  };
+
+  if (flow) return <FlowHistory key={flow.id} flow={flow} runs={runs} onBack={only ? undefined : back} />;
+  return (
+    <div className="stack">
+      <header className="page-head">
+        <h1>History</h1>
+      </header>
+      <div className="stack-tight">
+        {choices.map((f) => (
+          <FlowCard
+            key={f.id}
+            flow={f}
+            runs={finished.filter((r) => r.flowId === f.id)}
+            deleted={!data.flows.some((x) => x.id === f.id)}
+            onOpen={() => open(f.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** A flow at a glance on the overview: how it usually goes, the last run, and recent run times. */
+function FlowCard(props: { flow: Flow; runs: Run[]; deleted: boolean; onOpen: () => void }) {
+  const { flow } = props;
+  const times = useMemo(() => runTimes(props.runs), [props.runs]);
+  const summary = summarise(times);
+  const last = times[0];
+  if (!summary || !last) {
+    return (
+      <div className="card pad flow-summary empty">
+        <span className="row-title">{flow.name}</span>
+        <span className="row-meta">No runs yet</span>
+      </div>
+    );
+  }
+  const vsPlan = Math.round(summary.vsPlanMs / MINUTE);
+  const out = last.run.finishedAt!;
+  return (
+    <button type="button" className="card pad flow-summary" onClick={props.onOpen}>
+      <span className="flow-summary-top">
+        <span className="row-title">
+          {flow.name}
+          {props.deleted && <span className="chip">deleted</span>}
+        </span>
+        <span className="row-meta flow-summary-count">
+          {count(times.length, 'run')} <Icon name="next" size={18} />
+        </span>
+      </span>
+      <span>
+        Typically {minutes(summary.typicalMs)}
+        {vsPlan !== 0 && ` · ${duration(Math.abs(vsPlan) * 60)} ${vsPlan > 0 ? 'over' : 'under'} plan`}
+      </span>
+      <span className="row-meta">
+        Last {dayLabel(last.run.date)}: {words(flow.ending).finishedAt} {clock(out)}
+        {last.run.finishBy !== undefined && `, ${earlyLate(last.run.finishBy, out)}`}
+      </span>
+      <Sparkline times={times} />
+    </button>
+  );
+}
+
+/** The newest runs' total times as tiny columns, latest on the right in the accent. */
+function Sparkline({ times }: { times: RunTime[] }) {
+  const shown = times.slice(0, CHART_RUNS).reverse();
+  const max = Math.max(...shown.map((t) => t.tookMs));
+  return (
+    <span className="spark" aria-hidden="true">
+      {shown.map((t, i) => (
+        <i
+          key={t.run.id}
+          className={i === shown.length - 1 ? 'on' : undefined}
+          style={{ height: `${Math.max(8, (t.tookMs / max) * 100)}%` }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** One flow's history, from its own runs only. */
+function FlowHistory(props: { flow: Flow; runs: Run[]; onBack?: () => void }) {
+  const { flow, runs } = props;
+  const data = useData();
+  const times = useMemo(() => runTimes(runs), [runs]);
+  const usual = useMemo(() => usualTimes(runs), [runs]);
   const summary = summarise(times);
   const flowTasks = useMemo(() => {
     // A deleted flow's tasks are the ones its runs used, if they're still in your list.
@@ -48,23 +163,29 @@ export function HistoryScreen() {
     return data.tasks.filter((t) => ids.has(t.id));
   }, [data.tasks, flow, times]);
   const overrun = biggestOverrun(flowTasks, usual);
-  const pick = (id: Id) => {
-    setPicked(id);
-    if (data.flows.some((f) => f.id === id)) selectFlow(id);
-  };
+  const sharedWith = overrun
+    ? flowsUsing(data.flows, overrun.task.id)
+        .filter((f) => f.id !== flow.id)
+        .map((f) => f.name)
+    : [];
 
   return (
     <div className="stack">
-      <header className="page-head">
-        <h1>History</h1>
+      <header className="page-head history-head">
+        {props.onBack && (
+          <button type="button" className="btn btn-quiet back-link" onClick={props.onBack}>
+            <Icon name="back" size={20} /> All flows
+          </button>
+        )}
+        <h1>{flow.name}</h1>
       </header>
-      {choices.length > 1 && <FlowPicker flows={choices} value={flow.id} onChange={pick} />}
 
       {summary ? (
         <>
           <StatTiles summary={summary} ending={flow.ending} />
-          <RunChart key={flow.id} times={times} ending={flow.ending} />
-          <Insights trend={trend(times)} overrun={overrun} runs={times.length} />
+          <RunChart times={times} ending={flow.ending} />
+          <Insights trend={trend(times)} overrun={overrun} sharedWith={sharedWith} runs={times.length} />
+          <PastRuns times={times} />
         </>
       ) : (
         <p className="card pad muted">
@@ -72,34 +193,41 @@ export function HistoryScreen() {
         </p>
       )}
 
-      {times.length > 0 && <PastRuns key={flow.id} times={times} />}
-
-      {flowTasks.length > 0 && (
-        <section>
-          <h2 className="section-title">Usual times</h2>
-          <p className="muted">Median time over the last {LEARN_FROM} runs that included each task, in any flow.</p>
-          <ul className="card list">
-            {flowTasks.map((t) => {
-              const u = usual.get(t.id);
-              return (
-                <li key={t.id} className="row usual-row">
-                  <div className="row-main">
-                    <div className="row-title">{t.name}</div>
-                    <div className="row-meta">
-                      Standard {duration(t.handsOnSec)}
-                      {!u
-                        ? ' · not timed yet'
-                        : tidySeconds(u.medianSec) === t.handsOnSec && ` · usually the same (${u.samples})`}
-                    </div>
-                    {u && <UsualTime task={t} usual={u} />}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      {flowTasks.length > 0 && times.length > 0 && <TaskTimes flow={flow} tasks={flowTasks} usual={usual} />}
     </div>
+  );
+}
+
+/** Each task's usual time in this flow, folded away: the insight above points at the one that matters. */
+function TaskTimes(props: { flow: Flow; tasks: TaskDef[]; usual: ReadonlyMap<Id, Usual> }) {
+  return (
+    <details className="card task-times">
+      <summary>
+        <span className="row-title">Task times</span>
+        <span className="row-meta">
+          Usual times from the last {LEARN_FROM} runs of {props.flow.name}
+        </span>
+      </summary>
+      <ul className="list">
+        {props.tasks.map((t) => {
+          const u = props.usual.get(t.id);
+          return (
+            <li key={t.id} className="row usual-row">
+              <div className="row-main">
+                <div className="row-title">{t.name}</div>
+                <div className="row-meta">
+                  Standard {duration(t.handsOnSec)}
+                  {!u
+                    ? ' · not timed yet'
+                    : tidySeconds(u.medianSec) === t.handsOnSec && ` · usually the same (${u.samples})`}
+                </div>
+                {u && <UsualTime task={t} usual={u} />}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
   );
 }
 
@@ -283,7 +411,8 @@ function RunChart({ times, ending }: { times: RunTime[]; ending: Ending }) {
   );
 }
 
-function Insights({ trend, overrun, runs }: { trend?: Trend; overrun?: Overrun; runs: number }) {
+function Insights(props: { trend?: Trend; overrun?: Overrun; sharedWith: string[]; runs: number }) {
+  const { trend, overrun, runs } = props;
   const change = trend && Math.round((trend.recentMs - trend.earlierMs) / MINUTE);
   return (
     <section>
@@ -314,6 +443,9 @@ function Insights({ trend, overrun, runs }: { trend?: Trend; overrun?: Overrun; 
               {duration(overrun.overSec)} more than its standard {duration(overrun.task.handsOnSec)}. It's the task that
               runs over most.
             </p>
+            {props.sharedWith.length > 0 && (
+              <p className="hint">It's also in {listNames(props.sharedWith)}, so this changes it there too.</p>
+            )}
             <button
               type="button"
               className="btn btn-small"
@@ -334,7 +466,7 @@ function Insights({ trend, overrun, runs }: { trend?: Trend; overrun?: Overrun; 
   );
 }
 
-const RUNS_AT_FIRST = 10;
+const RUNS_AT_FIRST = 5;
 
 function PastRuns({ times }: { times: RunTime[] }) {
   const [all, setAll] = useState(false);

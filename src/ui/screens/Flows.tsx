@@ -51,7 +51,8 @@ export function FlowsScreen() {
   const data = useData();
   const flow = activeFlow(data);
   const tasks = tasksOf(data, flow);
-  const usual = useMemo(() => usualTimes(finishedRuns(data)), [data]);
+  // Usual times come from this flow's own runs: a walk on a weekend isn't a weekday walk.
+  const usual = useMemo(() => usualTimes(finishedRuns(data).filter((r) => r.flowId === flow.id)), [data, flow.id]);
   const [editing, setEditing] = useState<Task | 'new' | null>(null);
   const [sheet, setSheet] = useState<'add' | 'newFlow' | 'settings' | null>(null);
   const running = activeRun(data);

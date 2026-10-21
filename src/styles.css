@@ -1619,3 +1619,91 @@ p {
   border-radius: 1px;
   background: var(--text);
 }
+
+/* ---- History overview and flow pages ---- */
+
+.flow-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.flow-summary.empty {
+  cursor: default;
+}
+
+.flow-summary.empty .row-title {
+  color: var(--muted);
+}
+
+.flow-summary-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.flow-summary-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.spark {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 3px;
+  height: 28px;
+  margin-top: 6px;
+}
+
+.spark i {
+  flex: 1 1 0;
+  max-width: 12px;
+  border-radius: 2px 2px 0 0;
+  background: var(--chart-rest);
+}
+
+.spark i.on {
+  background: var(--chart-on);
+}
+
+.history-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.history-head h1 {
+  margin: 0;
+}
+
+.back-link {
+  min-height: 36px;
+  padding: 0 8px 0 0;
+  gap: 2px;
+}
+
+.task-times summary {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.task-times summary::-webkit-details-marker {
+  display: none;
+}
+
+.task-times[open] summary {
+  border-bottom: 1px solid var(--line);
+}
