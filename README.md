@@ -46,7 +46,9 @@ uses it. A flow ends one of two ways, which only changes the wording:
     details;
   - insights: whether the flow is getting quicker or taking longer (the last 5 runs against the 5 before), and the
     task that runs over most, with one tap to use its usual time;
-  - past runs with their total time, tap one for its tasks;
+  - past runs with their total time. Tap one (or **Timeline** under the chart) for a Gantt-style timeline of
+    what actually happened: a row per task on a clock axis, the bar from when you started it to when you finished,
+    amber for time beyond its plan, a tick where it was planned to end, and a line at your leave-by time;
   - each task's usual time (median of the last 10 runs that included it) with one tap to adopt it.
 - **Settings**: default get-up buffer, and backup export/import.
 
@@ -83,7 +85,7 @@ npm run format   # Prettier
 - `src/engine`: the scheduling engine, as pure functions with no UI code. `simulate.ts` is the single-worker
   scheduler, `run.ts` folds a run's taps and projects from the clock, `suggest.ts` picks drops, `plan.ts` works back
   from a finish time or forward from a start time, `learning.ts` does the medians, `insights.ts` works out run
-  times, the summary and the trend for History.
+  times, the summary and the trend for History, `timeline.ts` lays out a finished run for its timeline.
 - `src/store`: the saved document (a shared task list plus flows), its validation, migration and backup format, and
   the actions that change it.
 - `src/ui`: screens and components.

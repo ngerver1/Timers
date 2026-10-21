@@ -10,15 +10,15 @@ import {
   type Summary,
   type Trend,
 } from '../../engine/insights';
-import { actualSeconds, LEARN_FROM, tidySeconds, usualTimes } from '../../engine/learning';
-import { foldRun } from '../../engine/run';
+import { LEARN_FROM, tidySeconds, usualTimes } from '../../engine/learning';
 import { MINUTE } from '../../engine/time';
 import type { Ending, Flow, Id, Run } from '../../engine/types';
 import { deleteRun, finishedRuns, selectFlow, setHandsOn } from '../../store/actions';
 import { useData } from '../../store/store';
-import { FlowPicker } from '../components';
+import { FlowPicker, Sheet } from '../components';
 import { clock, dayLabel, duration, earlyLate, minutes, shortDay, words } from '../format';
 import { UsualTime } from './Flows';
+import { RunTimeline } from './RunTimeline';
 
 /** Flows to look back on: today's, then any deleted ones that still have runs. */
 function historyFlows(flows: readonly Flow[], runs: readonly Run[]): Flow[] {
@@ -152,6 +152,7 @@ function columnPath(x: number, width: number, top: number, base: number): string
 function RunChart({ times, ending }: { times: RunTime[]; ending: Ending }) {
   const shown = times.slice(0, CHART_RUNS).reverse();
   const [selectedId, setSelectedId] = useState<Id>();
+  const [showTimeline, setShowTimeline] = useState(false);
   const selected = shown.find((t) => t.run.id === selectedId) ?? shown[shown.length - 1]!;
   const { top, step } = minuteScale(Math.max(...shown.map((t) => Math.max(t.tookMs, t.plannedMs))));
   const plotW = W - PAD.left - PAD.right;
@@ -179,8 +180,12 @@ function RunChart({ times, ending }: { times: RunTime[]; ending: Ending }) {
       <figure className="card pad chart">
         <div className="chart-readout" aria-live="polite">
           <div className="chart-readout-top">
-            <strong>{minutes(selected.tookMs)}</strong>
-            <span>{dayLabel(selected.run.date)}</span>
+            <span>
+              <strong>{minutes(selected.tookMs)}</strong> {dayLabel(selected.run.date)}
+            </span>
+            <button type="button" className="btn btn-small" onClick={() => setShowTimeline(true)}>
+              Timeline
+            </button>
           </div>
           <div className="muted">
             planned {minutes(selected.plannedMs)} · {w.finishedAt} {clock(out)}
@@ -261,6 +266,19 @@ function RunChart({ times, ending }: { times: RunTime[]; ending: Ending }) {
           <span className="muted">Minutes · tap a column</span>
         </figcaption>
       </figure>
+      {showTimeline && (
+        <Sheet
+          title={`${dayLabel(selected.run.date)} · ${selected.run.flowName}`}
+          onClose={() => setShowTimeline(false)}
+        >
+          <div className="card pad stack-tight">
+            <p className="muted">
+              Started {clock(selected.run.startedAt)} · {w.finishedAt} {clock(out)} · took {minutes(selected.tookMs)}
+            </p>
+            <RunTimeline run={selected.run} />
+          </div>
+        </Sheet>
+      )}
     </section>
   );
 }
@@ -343,13 +361,11 @@ function PastRuns({ times }: { times: RunTime[] }) {
 function RunCard({ time }: { time: RunTime }) {
   const { run } = time;
   const out = run.finishedAt ?? run.startedAt;
-  const state = foldRun(run);
-  const actual = actualSeconds(run);
-  const notDone = run.tasks.filter((t) => !state.done.has(t.id) && !state.skipped.has(t.id));
-  const oneOffs = new Set(state.tasks.filter((t) => !run.tasks.some((x) => x.id === t.id)).map((t) => t.id));
   const w = words(run.ending);
+  // The timeline only renders once opened: a long history stays quick.
+  const [open, setOpen] = useState(false);
   return (
-    <details className="run-card">
+    <details className="run-card" onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary>
         <div className="run-summary-main">
           <div className="row-title">{dayLabel(run.date)}</div>
@@ -365,37 +381,11 @@ function RunCard({ time }: { time: RunTime }) {
           <span className="row-meta">planned {minutes(time.plannedMs)}</span>
         </div>
       </summary>
-      <ul className="list">
-        {[...state.done.values()].map((d) => (
-          <li key={d.task.id} className="row">
-            <div className="row-main">
-              <div className="row-title">
-                {d.task.name}
-                {oneOffs.has(d.task.id) && <span className="chip">one-off</span>}
-              </div>
-              <div className="row-meta">
-                {duration(actual.get(d.task.id) ?? 0)} · standard {duration(d.task.handsOnSec)}
-              </div>
-            </div>
-          </li>
-        ))}
-        {[...state.skipped].map((id) => (
-          <li key={id} className="row">
-            <div className="row-main">
-              <div className="row-title muted">{state.tasks.find((t) => t.id === id)?.name}</div>
-              <div className="row-meta">skipped</div>
-            </div>
-          </li>
-        ))}
-        {notDone.map((t) => (
-          <li key={t.id} className="row">
-            <div className="row-main">
-              <div className="row-title muted">{t.name}</div>
-              <div className="row-meta">not done</div>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {open && (
+        <div className="run-detail">
+          <RunTimeline run={run} />
+        </div>
+      )}
       <button
         type="button"
         className="btn btn-quiet danger-text"
