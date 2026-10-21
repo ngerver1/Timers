@@ -1716,3 +1716,83 @@ p {
 .task-times[open] summary {
   border-bottom: 1px solid var(--line);
 }
+
+/* ---- Start screen: what's coming up ---- */
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 4px 8px;
+}
+
+.section-head .section-title {
+  margin: 0;
+}
+
+.section-note {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.plan-row {
+  display: grid;
+  grid-template-columns: 5.2em minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 11px 16px;
+}
+
+.plan-time {
+  font-size: 14px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-name {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.plan-length {
+  font-size: 14px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.plan-finish .plan-time,
+.plan-finish .plan-name {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.also-row {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.also-row .row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.start-bar {
+  position: sticky;
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px);
+  z-index: 5;
+}
+
+.start-bar .btn {
+  min-height: 68px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.18);
+}

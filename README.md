@@ -18,7 +18,10 @@ uses it. A flow ends one of two ways, which only changes the wording:
 ## Using it
 
 - **Today**: pick a flow, switch on today's optional tasks, set an optional leave-by (or done-by) time and tap
-  **Start**. While it runs:
+  **Start** (it stays pinned above the tab bar). Before you start, **Coming up** lists what you'll do if you start
+  now: each task in order with its start time and length, ending with when you'll be out the door. It's the same
+  schedule the run follows, so it updates as you switch tasks on and off. Other flows you've planned for today are
+  listed under **Also planned today**; tap one to switch to it. While it runs:
   - the finish time; tap it to switch between the time, a countdown, and both;
   - how far the estimate has moved since Start (+/− vs plan) and, with a leave-by time, how much spare you have;
   - the current task with a countdown ring, **Done**, Skip, Edit and Undo, and −5/−1/+1/+5 buttons to change its

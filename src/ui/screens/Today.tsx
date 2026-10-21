@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { routineLength } from '../../engine/plan';
+import { finishFrom, latestStart } from '../../engine/plan';
 import { activeTasks, closeOver } from '../../engine/routine';
 import { foldRun, lastUndoable, plannedFinish, projectState, type DoneTask, type Projection } from '../../engine/run';
-import type { Slot } from '../../engine/simulate';
+import { simulate, type Slot } from '../../engine/simulate';
 import { suggestDrops, type DropSuggestion } from '../../engine/suggest';
-import { ceilMinute, dateKey, upcomingTime } from '../../engine/time';
+import { atTime, ceilMinute, dateKey, upcomingTime } from '../../engine/time';
 import type { Ending, Flow, Id, Run, Task } from '../../engine/types';
 import {
   activeFlow,
@@ -97,8 +97,10 @@ function StartView({ flow, now }: { flow: Flow; now: number }) {
   }, [flow.id, today, planKey, on, finishBy]);
 
   const selected = closeOver(flowTasks, on); // tasks may have been edited since
-  const length = routineLength(forSchedule(activeTasks(flowTasks, selected)));
-  const outAt = now + length;
+  // The same schedule a run would follow, from now.
+  const schedule = simulate({ tasks: forSchedule(activeTasks(flowTasks, selected)), from: now });
+  const outAt = schedule.finish;
+  const length = outAt - now;
   const finishAt = finishBy ? upcomingTime(finishBy, now) : undefined;
   const earlier = finishedRuns(data).find((r) => r.date === today && r.flowId === flow.id);
   const several = data.flows.length > 1;
@@ -150,10 +152,82 @@ function StartView({ flow, now }: { flow: Flow; now: number }) {
           </div>
         )}
       </section>
-      <button type="button" className="btn btn-primary btn-huge" onClick={start} disabled={flowTasks.length === 0}>
-        {several ? `Start ${flow.name}` : 'Start'}
-      </button>
+      {schedule.slots.length > 0 && <ComingUp slots={schedule.slots} finish={outAt} ending={flow.ending} />}
+      <AlsoToday flow={flow} today={today} now={now} />
+      {/* Pinned above the tab bar, so it's always in reach however long the list. */}
+      <div className="start-bar">
+        <button type="button" className="btn btn-primary btn-huge" onClick={start} disabled={flowTasks.length === 0}>
+          {several ? `Start ${flow.name}` : 'Start'}
+        </button>
+      </div>
     </div>
+  );
+}
+
+/** What you'll do if you start now, in order, with times: the same schedule the run will follow. */
+function ComingUp({ slots, finish, ending }: { slots: Slot[]; finish: number; ending: Ending }) {
+  return (
+    <section>
+      <div className="section-head">
+        <h2 className="section-title">Coming up</h2>
+        <span className="section-note">if you start now</span>
+      </div>
+      <ol className="card list plan-list">
+        {slots.map((s) => (
+          <li key={s.task.id} className="plan-row">
+            <span className="plan-time">{clock(s.start)}</span>
+            <span className="plan-name">
+              {s.task.name}
+              {s.task.optional && <span className="chip">optional</span>}
+            </span>
+            <span className="plan-length">{taskLength(s.task)}</span>
+          </li>
+        ))}
+        <li className="plan-row plan-finish">
+          <span className="plan-time">{clock(ceilMinute(finish))}</span>
+          <span className="plan-name">{words(ending).finish}</span>
+        </li>
+      </ol>
+    </section>
+  );
+}
+
+/** Other flows you've planned for today, still to come. Tap one to switch to it. */
+function AlsoToday({ flow, today, now }: { flow: Flow; today: string; now: number }) {
+  const data = useData();
+  const items = data.flows
+    .filter((f) => f.id !== flow.id)
+    .flatMap((f) => {
+      const plan = planFor(data, today, f.id);
+      if (!plan?.time) return [];
+      const list = tasksOf(data, f);
+      const tasks = forSchedule(activeTasks(list, closeOver(list, plan.optionalOn)));
+      const fixed = atTime(today, plan.time);
+      const start = plan.mode === 'doneBy' ? latestStart(tasks, fixed) : fixed;
+      const finish = plan.mode === 'doneBy' ? fixed : finishFrom(tasks, fixed);
+      return finish > now ? [{ flow: f, start, finish }] : [];
+    })
+    .sort((a, b) => a.start - b.start);
+  if (items.length === 0) return null;
+  return (
+    <section>
+      <h2 className="section-title">Also planned today</h2>
+      <ul className="card list">
+        {items.map(({ flow: f, start, finish }) => (
+          <li key={f.id}>
+            <button type="button" className="row also-row" onClick={() => selectFlow(f.id)}>
+              <span className="row-main">
+                <span className="row-title">{f.name}</span>
+                <span className="row-meta">
+                  start {clock(start)} · {words(f.ending).finishedAt} {clock(ceilMinute(finish))}
+                </span>
+              </span>
+              <Icon name="next" size={18} />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
