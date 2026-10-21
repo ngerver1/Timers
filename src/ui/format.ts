@@ -1,6 +1,6 @@
 // Display formatting. Uses the phone's locale (en-AU gives "7:45 am").
 import { ceilMinute, MINUTE } from '../engine/time';
-import type { Ending, Task } from '../engine/types';
+import type { Task } from '../engine/types';
 import { features } from '../features';
 
 const clockFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -130,27 +130,15 @@ export const count = (n: number, noun: string): string => `${n} ${noun}${n === 1
 export const listNames = (names: string[]): string =>
   names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 
-/** How a flow talks about finishing: a morning ends "out the door", dinner is just "done". */
-export function words(ending: Ending) {
-  return ending === 'leave'
-    ? {
-        finish: 'Out the door',
-        finishIn: 'Out the door in',
-        finishedAt: 'out the door at',
-        by: 'Leave by',
-        byTime: 'leave-by time',
-        toBeBy: 'to leave by',
-        finishButton: 'Out the door',
-        allDone: 'Ready to go',
-      }
-    : {
-        finish: 'Done',
-        finishIn: 'Done in',
-        finishedAt: 'done at',
-        by: 'Done by',
-        byTime: 'done-by time',
-        toBeBy: 'to be done by',
-        finishButton: 'Finish',
-        allDone: "That's everything",
-      };
-}
+/** How the app talks about the end of a flow, the same for every kind of flow. */
+export const wording = {
+  finish: 'Finish',
+  finishAt: 'Finish at',
+  finishIn: 'Finish in',
+  finished: 'Finished',
+  finishedAt: 'finished at',
+  by: 'Finish by',
+  byTime: 'finish-by time',
+  toBeBy: 'to finish by',
+  allDone: "That's everything",
+} as const;

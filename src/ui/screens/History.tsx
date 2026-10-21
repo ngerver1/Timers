@@ -13,12 +13,12 @@ import {
 } from '../../engine/insights';
 import { LEARN_FROM, tidySeconds, usualTimes, type Usual } from '../../engine/learning';
 import { MINUTE } from '../../engine/time';
-import type { Ending, Flow, Id, Run, TaskDef } from '../../engine/types';
+import type { Flow, Id, Run, TaskDef } from '../../engine/types';
 import { deleteRuns, finishedRuns, setHandsOn } from '../../store/actions';
 import { flowsUsing } from '../../store/flows';
 import { useData } from '../../store/store';
 import { Icon, Sheet } from '../components';
-import { clock, count, dayLabel, duration, earlyLate, listNames, minutes, shortDay, words } from '../format';
+import { clock, count, dayLabel, duration, earlyLate, listNames, minutes, shortDay, wording } from '../format';
 import { UsualTime } from './Flows';
 import { RunTimeline } from './RunTimeline';
 
@@ -124,7 +124,7 @@ function FlowCard(props: { flow: Flow; runs: Run[]; deleted: boolean; onOpen: ()
         {vsPlan !== 0 && ` · ${duration(Math.abs(vsPlan) * 60)} ${vsPlan > 0 ? 'over' : 'under'} plan`}
       </span>
       <span className="row-meta">
-        Last {dayLabel(last.run.date)}: {words(flow.ending).finishedAt} {clock(out)}
+        Last {dayLabel(last.run.date)}: {wording.finishedAt} {clock(out)}
         {last.run.finishBy !== undefined && `, ${earlyLate(last.run.finishBy, out)}`}
       </span>
       <Sparkline times={times} />
@@ -183,8 +183,8 @@ function FlowHistory(props: { flow: Flow; runs: Run[]; onBack?: () => void }) {
 
       {summary ? (
         <>
-          <StatTiles summary={summary} ending={flow.ending} />
-          <RunChart times={times} ending={flow.ending} />
+          <StatTiles summary={summary} />
+          <RunChart times={times} />
           <Insights
             trend={trend(times)}
             overrun={overrun}
@@ -196,7 +196,7 @@ function FlowHistory(props: { flow: Flow; runs: Run[]; onBack?: () => void }) {
         </>
       ) : (
         <p className="card pad muted">
-          No runs of {flow.name} yet. Each run is saved here when you tap {words(flow.ending).finishButton}.
+          No runs of {flow.name} yet. Each run is saved here when you tap {wording.finish}.
         </p>
       )}
 
@@ -239,7 +239,7 @@ function TaskTimes(props: { flow: Flow; tasks: TaskDef[]; usual: ReadonlyMap<Id,
 }
 
 /** The newest runs at a glance. */
-function StatTiles({ summary, ending }: { summary: Summary; ending: Ending }) {
+function StatTiles({ summary }: { summary: Summary }) {
   const vsPlan = Math.round(summary.vsPlanMs / MINUTE);
   return (
     <div className="stat-row">
@@ -261,7 +261,7 @@ function StatTiles({ summary, ending }: { summary: Summary; ending: Ending }) {
           <strong className="stat-value">
             {summary.onTime.made} of {summary.onTime.of}
           </strong>
-          <span className="stat-sub">with a {words(ending).byTime}</span>
+          <span className="stat-sub">with a {wording.byTime}</span>
         </div>
       )}
     </div>
@@ -284,7 +284,7 @@ function columnPath(x: number, width: number, top: number, base: number): string
  * at what the plan at Start said; tap a column for its details. The Past runs
  * list below has every value too.
  */
-function RunChart({ times, ending }: { times: RunTime[]; ending: Ending }) {
+function RunChart({ times }: { times: RunTime[] }) {
   const shown = times.slice(0, CHART_RUNS).reverse();
   const [selectedId, setSelectedId] = useState<Id>();
   const [showTimeline, setShowTimeline] = useState(false);
@@ -300,7 +300,7 @@ function RunChart({ times, ending }: { times: RunTime[]; ending: Ending }) {
   const width = Math.min(24, slot * 0.62);
   const reach = Math.min(3, (slot - width) / 4);
   const slotX = (i: number) => PAD.left + (slots - shown.length + i) * slot;
-  const w = words(ending);
+  const w = wording;
   const out = selected.run.finishedAt!;
   const choose = (id: Id) => (e: KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -551,7 +551,7 @@ function confirmDelete(runs: Run[]) {
 function RunCard({ time, sameDay }: { time: RunTime; sameDay: Run[] }) {
   const { run } = time;
   const out = run.finishedAt ?? run.startedAt;
-  const w = words(run.ending);
+  const w = wording;
   // The timeline only renders once opened: a long history stays quick.
   const [open, setOpen] = useState(false);
   return (
@@ -560,7 +560,7 @@ function RunCard({ time, sameDay }: { time: RunTime; sameDay: Run[] }) {
         <div className="run-summary-main">
           <div className="row-title">{dayLabel(run.date)}</div>
           <div>
-            {w.finish} at {clock(out)}
+            {w.finished} at {clock(out)}
           </div>
           <div className="row-meta">
             {run.finishBy !== undefined && `${earlyLate(run.finishBy, out)} · `}started {clock(run.startedAt)}

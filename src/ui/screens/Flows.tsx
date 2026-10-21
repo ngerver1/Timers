@@ -42,10 +42,13 @@ import { useData } from '../../store/store';
 import { FlowPicker, Icon, Segmented, Sheet, Toggle } from '../components';
 import { duration, listNames, minutesText, parseMinutes, taskLength } from '../format';
 
-const ENDINGS: [Ending, string][] = [
-  ['leave', 'Leaving the house'],
-  ['done', 'Getting it done'],
+const KINDS: [Ending, string][] = [
+  ['leave', 'Morning'],
+  ['done', 'Any time'],
 ];
+
+const kindHint = (kind: Ending) =>
+  kind === 'leave' ? 'Planned the night before, and Plan shows when to get up.' : 'Planned on the day.';
 
 export function FlowsScreen() {
   const data = useData();
@@ -87,8 +90,7 @@ export function FlowsScreen() {
         <div>
           <h2 className="flow-name">{flow.name}</h2>
           <div className="row-meta">
-            {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} · ends when{' '}
-            {flow.ending === 'leave' ? "you're out the door" : "it's done"}
+            {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'} · {flow.ending === 'leave' ? 'morning' : 'any time'}
           </div>
         </div>
         <button type="button" className="btn btn-small" onClick={() => setSheet('settings')}>
@@ -444,8 +446,9 @@ function NewFlowSheet({ flows, onClose }: { flows: Flow[]; onClose: () => void }
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Wake up" autoFocus />
         </label>
         <div className="field">
-          <span>It ends with</span>
-          <Segmented value={ending} options={ENDINGS} onChange={setEnding} />
+          <span>Kind</span>
+          <Segmented value={ending} options={KINDS} onChange={setEnding} />
+          <p className="hint">{kindHint(ending)}</p>
         </div>
         <div>
           <h3 className="section-title">Start with</h3>
@@ -501,13 +504,9 @@ function FlowSettingsSheet(props: { flow: Flow; deleteBlocked?: string; onClose:
           <input value={name} onChange={(e) => setName(e.target.value)} />
         </label>
         <div className="field">
-          <span>It ends with</span>
-          <Segmented value={ending} options={ENDINGS} onChange={setEnding} />
-          <p className="hint">
-            {ending === 'leave'
-              ? 'Shown as "out the door" and "leave by".'
-              : 'Shown as "done" and "done by", for things like dinner.'}
-          </p>
+          <span>Kind</span>
+          <Segmented value={ending} options={KINDS} onChange={setEnding} />
+          <p className="hint">{kindHint(ending)}</p>
         </div>
         <button type="submit" className="btn btn-primary" disabled={!name.trim()}>
           Save

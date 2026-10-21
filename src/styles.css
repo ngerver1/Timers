@@ -1816,3 +1816,15 @@ p {
 .plan-edit-summary {
   margin: 0 4px;
 }
+
+/* ---- Today's plan ---- */
+
+.today-by {
+  margin-top: 6px;
+  font-size: 15px;
+}
+
+.btn.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}

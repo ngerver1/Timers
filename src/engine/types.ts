@@ -24,7 +24,11 @@ export interface FlowItem {
   optional: boolean;
 }
 
-/** How a flow ends, which sets its wording: leaving the house ("out the door"), or just being done. */
+/**
+ * The kind of flow: a morning ('leave'), planned the night before from when you
+ * get up, or any other ('done'), planned on the day. Wording is the same for both;
+ * the stored names are from when they also set it.
+ */
 export type Ending = 'leave' | 'done';
 
 /** Which end of a plan is fixed, like Google Maps' "Arrive by" and "Depart at". */
@@ -61,10 +65,10 @@ export interface Run {
   /** Today's tasks (required plus switched-on optional), copied from the flow at Start, in priority order. */
   tasks: Task[];
   optionalOn: Id[];
-  /** Must be finished by (epoch ms): leave-by for a morning. Appointments can set this later. */
+  /** Must be finished by (epoch ms). Appointments can set this later. */
   finishBy?: number;
   startedAt: number;
-  /** Set when you tap Out the door (or Finish). */
+  /** Set when you tap Finish. */
   finishedAt?: number;
   events: RunEvent[];
 }

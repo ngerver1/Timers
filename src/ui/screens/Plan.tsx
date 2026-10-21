@@ -5,10 +5,11 @@ import { atTime, ceilMinute, dateKey, MINUTE, nextMorning } from '../../engine/t
 import type { Flow } from '../../engine/types';
 import { forSchedule } from '../../features';
 import { activeFlow, deletePlan, planFor, savePlan, selectFlow, tasksOf } from '../../store/actions';
+import { dayTasks } from '../../store/flows';
 import type { Plan } from '../../store/schema';
 import { useData } from '../../store/store';
 import { BigClock, FlowPicker, OptionalPicker, Segmented, Stepper, TimeField } from '../components';
-import { clock, dayLabel, duration, words } from '../format';
+import { clock, dayLabel, duration, listNames, wording } from '../format';
 
 /** A morning is planned the night before; anything else, the same day. */
 const defaultDay = (flow: Flow) => (flow.ending === 'leave' ? nextMorning(Date.now()) : dateKey(Date.now()));
@@ -22,8 +23,7 @@ export function PlanScreen() {
 
 function FlowPlan({ flow }: { flow: Flow }) {
   const data = useData();
-  const flowList = tasksOf(data, flow);
-  const w = words(flow.ending);
+  const w = wording;
   const wakes = flow.ending === 'leave';
   const [date, setDate] = useState(() => defaultDay(flow));
   const saved = planFor(data, date, flow.id);
@@ -31,10 +31,14 @@ function FlowPlan({ flow }: { flow: Flow }) {
     date,
     flowId: flow.id,
     optionalOn: [],
+    extras: [],
     mode: flow.usual?.mode ?? 'doneBy',
     time: flow.usual?.time,
     bufferMin: data.settings.bufferMin,
   };
+  // The flow's own tasks, then any added for that day on the Today screen.
+  const flowList = dayTasks(data.tasks, flow, plan);
+  const extraNames = flowList.slice(tasksOf(data, flow).length).map((t) => t.name);
   const on = closeOver(flowList, plan.optionalOn);
   const tasks = forSchedule(activeTasks(flowList, on));
   const length = routineLength(tasks);
@@ -43,7 +47,7 @@ function FlowPlan({ flow }: { flow: Flow }) {
   const start = fixed === undefined ? undefined : plan.mode === 'doneBy' ? latestStart(tasks, fixed) : fixed;
   const finish = fixed === undefined ? undefined : plan.mode === 'doneBy' ? fixed : finishFrom(tasks, fixed);
   const getUp = start === undefined ? undefined : start - (wakes ? plan.bufferMin : 0) * MINUTE;
-  // Every change saves, so the Start screen on that day picks it up.
+  // Every change saves, so the Today screen on that day picks it up.
   const save = (change: Partial<Plan>) => savePlan({ ...plan, optionalOn: [...on], ...change, date, flowId: flow.id });
 
   return (
@@ -68,6 +72,7 @@ function FlowPlan({ flow }: { flow: Flow }) {
       <section>
         <h2 className="section-title">Optional tasks</h2>
         <OptionalPicker tasks={flowList} on={on} onChange={(next) => save({ optionalOn: [...next] })} />
+        {extraNames.length > 0 && <p className="hint">Also added for this day: {listNames(extraNames)}.</p>}
       </section>
 
       <section className="card pad stack-tight">
@@ -99,9 +104,7 @@ function FlowPlan({ flow }: { flow: Flow }) {
       <section className="card hero">
         {start !== undefined && finish !== undefined && getUp !== undefined ? (
           <>
-            <div className="hero-label">
-              {plan.mode === 'startAt' ? `${w.finish} at` : wakes ? 'Get up at' : 'Start by'}
-            </div>
+            <div className="hero-label">{plan.mode === 'startAt' ? w.finishAt : wakes ? 'Get up at' : 'Start by'}</div>
             <BigClock ms={plan.mode === 'startAt' ? ceilMinute(finish) : getUp} className="hero-clock" />
             <div className="hero-sub muted">
               {[

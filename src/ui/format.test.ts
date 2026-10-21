@@ -12,7 +12,7 @@ import {
   slack,
   taskProgress,
   timer,
-  words,
+  wording,
 } from './format';
 
 describe('format', () => {
@@ -79,13 +79,7 @@ describe('format', () => {
     expect(count(0, 'past run')).toBe('0 past runs');
   });
 
-  it('talks about leaving the house, or just being done', () => {
-    expect(words('leave')).toMatchObject({ finish: 'Out the door', by: 'Leave by', finishButton: 'Out the door' });
-    expect(words('done')).toMatchObject({
-      finish: 'Done',
-      by: 'Done by',
-      toBeBy: 'to be done by',
-      finishButton: 'Finish',
-    });
+  it('talks about finishing the same way for every kind of flow', () => {
+    expect(wording).toMatchObject({ finish: 'Finish', by: 'Finish by', finishedAt: 'finished at' });
   });
 });

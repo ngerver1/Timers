@@ -4,7 +4,7 @@ import { lastUndoable } from '../engine/run';
 import { addDays, dateKey, upcomingTime } from '../engine/time';
 import type { Ending, Flow, Id, Run, RunEvent, Task, TaskDef } from '../engine/types';
 import { forSchedule } from '../features';
-import { flowTasks } from './flows';
+import { dayTasks, flowTasks } from './flows';
 import { newId, type Plan, type StoreData } from './schema';
 import { update } from './store';
 
@@ -151,11 +151,14 @@ export function replaceAll(next: StoreData) {
 
 // ---- Runs ----
 
-/** Starts the picked flow now, optionally needing to be finished by a local "HH:MM". */
+/**
+ * Starts the picked flow now, with any tasks added to today's plan, optionally
+ * needing to be finished by a local "HH:MM".
+ */
 export function startRun(optionalOn: Iterable<Id>, finishBy: string | undefined, now = Date.now()) {
   update((d) => {
     const flow = activeFlow(d);
-    const tasks = tasksOf(d, flow);
+    const tasks = dayTasks(d.tasks, flow, planFor(d, dateKey(now), flow.id));
     const on = closeOver(tasks, optionalOn);
     const run: Run = {
       id: newId(),

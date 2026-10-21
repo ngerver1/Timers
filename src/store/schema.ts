@@ -4,11 +4,16 @@ import type { Ending, Flow, FlowItem, Id, PlanMode, Run, RunEvent, Task, TaskDef
 
 export const STORE_VERSION = 2;
 
+/** A task added to one day's plan only: one from your task list, or a one-off for that day. */
+export type PlanExtra = { taskId: Id } | { oneOff: TaskDef };
+
 export interface Plan {
   /** The day it's for, YYYY-MM-DD. */
   date: string;
   flowId: Id;
   optionalOn: Id[];
+  /** Added for that day, after the flow's own tasks. */
+  extras: PlanExtra[];
   /** Which end is fixed: done by `time` (work back), or start at `time` (work forward). */
   mode: PlanMode;
   /** Local "HH:MM". */
@@ -174,12 +179,19 @@ function run(v: unknown): Run {
   };
 }
 
+function extra(v: unknown): PlanExtra {
+  if (!isObj(v)) return fail('plan task');
+  return isObj(v.oneOff) ? { oneOff: taskDef(v.oneOff) } : { taskId: str(v.taskId, 'plan task') };
+}
+
 function plan(v: unknown): Plan {
   if (!isObj(v)) return fail('plan');
   return {
     date: str(v.date, 'plan date'),
     flowId: str(v.flowId, 'plan flow'),
     optionalOn: strs(v.optionalOn, 'plan options'),
+    // Plans saved before extras existed have none.
+    extras: v.extras === undefined ? [] : arr(v.extras, 'plan tasks', extra),
     mode: planMode(v.mode),
     time: optStr(v.time, 'plan time'),
     bufferMin: num(v.bufferMin, 'plan buffer'),
@@ -217,6 +229,7 @@ function fromV1(v: Record<string, unknown>): Omit<StoreData, 'settings' | 'activ
         date: str(p.date, 'plan date'),
         flowId: str(p.routineId, 'plan routine'),
         optionalOn: strs(p.optionalOn, 'plan options'),
+        extras: [],
         mode: 'doneBy' as const,
         time: optStr(p.leaveBy, 'plan leave-by'),
         bufferMin: num(p.bufferMin, 'plan buffer'),

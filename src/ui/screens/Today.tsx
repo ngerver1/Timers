@@ -5,7 +5,7 @@ import { foldRun, lastUndoable, plannedFinish, projectState, type DoneTask, type
 import { simulate, type Slot } from '../../engine/simulate';
 import { suggestDrops, type DropSuggestion } from '../../engine/suggest';
 import { atTime, ceilMinute, dateKey, upcomingTime } from '../../engine/time';
-import type { Ending, Flow, Run, Task } from '../../engine/types';
+import type { Flow, Id, Run, Task } from '../../engine/types';
 import {
   activeFlow,
   activeRun,
@@ -24,8 +24,8 @@ import {
   tasksOf,
   undoLast,
 } from '../../store/actions';
-import { flowsUsing, offeredFinishBy } from '../../store/flows';
-import type { Plan } from '../../store/schema';
+import { dayTasks, flowsUsing, offeredFinishBy } from '../../store/flows';
+import { newId, type Plan, type PlanExtra } from '../../store/schema';
 import { useData } from '../../store/store';
 import { forSchedule } from '../../features';
 import {
@@ -45,7 +45,6 @@ import {
   dayLabel,
   drift,
   duration,
-  earlyLate,
   listNames,
   minutesText,
   nudgedSeconds,
@@ -54,7 +53,7 @@ import {
   taskLength,
   taskProgress,
   timer,
-  words,
+  wording,
 } from '../format';
 import {
   HERO_MODES,
@@ -78,74 +77,66 @@ export function TodayScreen() {
 // ---- Before Start ----
 
 /**
- * Today's plan for the picked flow, and Start. The plan is just what's coming up;
- * optional tasks and the leave-by time are changed under Edit plan, and saved as
- * today's plan (the same one the Plan tab shows for today).
+ * Today's plan for the picked flow, and Start. The plan is what's coming up; Edit
+ * plan switches optional tasks, adds others for today and sets the finish-by time,
+ * all saved as today's plan (the one the Plan tab shows for today).
  */
 function StartView({ flow, now }: { flow: Flow; now: number }) {
   const data = useData();
-  const flowTasks = tasksOf(data, flow);
-  const w = words(flow.ending);
+  const w = wording;
   const today = dateKey(now);
   const saved = planFor(data, today, flow.id);
   const plan: Plan = saved ?? {
     date: today,
     flowId: flow.id,
     optionalOn: [],
+    extras: [],
     mode: flow.usual?.mode ?? 'doneBy',
     time: flow.usual?.time,
     bufferMin: data.settings.bufferMin,
   };
   const [editing, setEditing] = useState(false);
 
-  const selected = closeOver(flowTasks, plan.optionalOn); // tasks may have been edited since
-  const finishBy = offeredFinishBy(flowTasks, selected, saved ?? flow.usual, today);
+  const tasks = dayTasks(data.tasks, flow, plan); // the flow's own, then today's extras
+  const added = new Set(tasks.slice(tasksOf(data, flow).length).map((t) => t.id));
+  const selected = closeOver(tasks, plan.optionalOn); // tasks may have been edited since
+  const finishBy = offeredFinishBy(tasks, selected, saved ?? flow.usual, today);
   const edit = (change: Partial<Plan>) =>
     savePlan({ ...plan, optionalOn: [...selected], ...change, date: today, flowId: flow.id });
   // The same schedule a run would follow, from now.
-  const schedule = simulate({ tasks: forSchedule(activeTasks(flowTasks, selected)), from: now });
-  const outAt = schedule.finish;
-  const length = outAt - now;
+  const schedule = simulate({ tasks: forSchedule(activeTasks(tasks, selected)), from: now });
+  const finish = schedule.finish;
+  const length = finish - now;
   const finishAt = finishBy ? upcomingTime(finishBy, now) : undefined;
-  const earlier = finishedRuns(data).find((r) => r.date === today && r.flowId === flow.id);
+  const startBy = finishAt === undefined ? undefined : finishAt - length;
   const several = data.flows.length > 1;
 
   return (
     <div className="stack">
-      <header className="page-head">
-        <h1>{dayLabel(today)}</h1>
-        {saved && <span className="chip">From your plan</span>}
-      </header>
       {several && <FlowPicker flows={data.flows} value={flow.id} onChange={selectFlow} />}
-      {earlier?.finishedAt !== undefined && (
+      {tasks.length === 0 ? (
         <p className="card pad note">
-          You were {words(earlier.ending).finishedAt} {clock(earlier.finishedAt)}
-          {earlier.finishBy !== undefined && `, ${earlyLate(earlier.finishBy, earlier.finishedAt)}`}.
+          {flow.name} has no tasks yet. Add some on the Flows tab, or just for today under Edit plan.
         </p>
-      )}
-      {flowTasks.length === 0 ? (
-        <p className="card pad note">{flow.name} has no tasks yet. Add some on the Flows tab.</p>
       ) : (
         <>
-          <section className="card pad summary">
-            <div className="summary-line">
-              <span>Takes</span>
-              <strong>{duration(length / 1000)}</strong>
+          <section className="card hero">
+            <div className="hero-label">
+              {flow.name} · {w.finishAt}
             </div>
-            <div className="summary-line">
-              <span>Start now, {w.finishedAt}</span>
-              <strong>{clock(ceilMinute(outAt))}</strong>
+            <BigClock ms={ceilMinute(finish)} className="hero-clock" />
+            <div className="hero-sub">
+              <span>{duration(length / 1000)} of tasks</span>
+              {finishAt !== undefined && <SlackPill finishBy={finishAt} outAt={finish} />}
             </div>
             {finishAt !== undefined && (
-              <div className="summary-line">
-                <span>
-                  {w.by} {clock(finishAt)}
-                </span>
-                <SlackPill finishBy={finishAt} outAt={outAt} />
+              <div className="hero-sub muted today-by">
+                {w.by.toLowerCase()} {clock(finishAt)}
+                {startBy !== undefined && startBy >= now && ` · start by ${clock(startBy)}`}
               </div>
             )}
           </section>
-          <ComingUp slots={schedule.slots} finish={outAt} ending={flow.ending} />
+          <ComingUp slots={schedule.slots} finish={finish} added={added} />
         </>
       )}
       <AlsoToday flow={flow} today={today} now={now} />
@@ -158,47 +149,183 @@ function StartView({ flow, now }: { flow: Flow; now: number }) {
           type="button"
           className="btn btn-primary btn-start"
           onClick={() => startRun(selected, finishBy || undefined)}
-          disabled={flowTasks.length === 0}
+          disabled={tasks.length === 0}
         >
           {several ? `Start ${flow.name}` : 'Start'}
         </button>
       </div>
       {editing && (
-        <Sheet title={`Today's plan · ${flow.name}`} onClose={() => setEditing(false)}>
-          <div className="stack">
-            <section>
-              <h3 className="section-title">Optional today</h3>
-              <OptionalPicker tasks={flowTasks} on={selected} onChange={(next) => edit({ optionalOn: [...next] })} />
-            </section>
-            <section className="card pad">
-              <TimeField
-                label={w.by}
-                value={finishBy}
-                onChange={(v) => edit({ mode: 'doneBy', time: v || undefined })}
-              />
-            </section>
-            <p className="muted plan-edit-summary">
-              Takes {duration(length / 1000)}. Start now and you're {w.finishedAt} {clock(ceilMinute(outAt))}
-              {finishAt !== undefined && ` (${slack(finishAt, outAt).text.toLowerCase()})`}.
-            </p>
-            <button type="button" className="btn btn-primary" onClick={() => setEditing(false)}>
-              Done
-            </button>
-          </div>
-        </Sheet>
+        <EditPlanSheet
+          flow={flow}
+          plan={plan}
+          tasks={tasks}
+          selected={selected}
+          finishBy={finishBy}
+          edit={edit}
+          summary={`Takes ${duration(length / 1000)}. Start now and you'll finish at ${clock(ceilMinute(finish))}${
+            finishAt !== undefined ? ` (${slack(finishAt, finish).text.toLowerCase()})` : ''
+          }.`}
+          onClose={() => setEditing(false)}
+        />
       )}
     </div>
   );
 }
 
-/** What you'll do if you start now, in order, with times: the same schedule the run will follow. */
-function ComingUp({ slots, finish, ending }: { slots: Slot[]; finish: number; ending: Ending }) {
+/** The day's plan, changed in place: optional tasks, tasks added for the day, and the finish-by time. */
+function EditPlanSheet(props: {
+  flow: Flow;
+  plan: Plan;
+  tasks: Task[];
+  selected: ReadonlySet<Id>;
+  finishBy: string;
+  edit: (change: Partial<Plan>) => void;
+  summary: string;
+  onClose: () => void;
+}) {
+  const { flow, plan, tasks, edit } = props;
+  const data = useData();
+  const [adding, setAdding] = useState<'list' | 'oneOff' | null>(null);
+  const [name, setName] = useState('');
+  const [minutes, setMinutes] = useState('5');
+  const value = parseMinutes(minutes);
+  const inPlan = new Set(tasks.map((t) => t.id));
+  const available = data.tasks.filter((t) => !inPlan.has(t.id));
+  const extraTask = (e: PlanExtra) => ('oneOff' in e ? e.oneOff : data.tasks.find((t) => t.id === e.taskId));
+  const addOneOff = () => {
+    if (!name.trim() || value === undefined) return;
+    const oneOff = { id: newId(), name: name.trim(), handsOnSec: Math.round(value * 60), waitSec: 0, after: [] };
+    edit({ extras: [...plan.extras, { oneOff }] });
+    setName('');
+    setMinutes('5');
+    setAdding(null);
+  };
+  return (
+    <Sheet title={`Today's plan · ${flow.name}`} onClose={props.onClose}>
+      <div className="stack">
+        {tasks.some((t) => t.optional) && (
+          <section>
+            <h3 className="section-title">Optional today</h3>
+            <OptionalPicker tasks={tasks} on={props.selected} onChange={(next) => edit({ optionalOn: [...next] })} />
+          </section>
+        )}
+
+        <section className="stack-tight">
+          <h3 className="section-title">Added for today</h3>
+          {plan.extras.length > 0 && (
+            <ul className="card list">
+              {plan.extras.map((e, i) => {
+                const t = extraTask(e);
+                return (
+                  t && (
+                    <li key={t.id} className="row">
+                      <div className="row-main">
+                        <div className="row-title">
+                          {t.name}
+                          {'oneOff' in e && <span className="chip">one-off</span>}
+                        </div>
+                        <div className="row-meta">{taskLength(t)}</div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-quiet"
+                        aria-label={`Remove ${t.name}`}
+                        onClick={() => edit({ extras: plan.extras.filter((_, j) => j !== i) })}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  )
+                );
+              })}
+            </ul>
+          )}
+          <div className="action-row">
+            <button
+              type="button"
+              className={`btn${adding === 'list' ? ' on' : ''}`}
+              onClick={() => setAdding(adding === 'list' ? null : 'list')}
+            >
+              <Icon name="plus" size={20} /> Your tasks
+            </button>
+            <button
+              type="button"
+              className={`btn${adding === 'oneOff' ? ' on' : ''}`}
+              onClick={() => setAdding(adding === 'oneOff' ? null : 'oneOff')}
+            >
+              <Icon name="plus" size={20} /> One-off
+            </button>
+          </div>
+          {adding === 'list' &&
+            (available.length === 0 ? (
+              <p className="muted">Every task you have is already in today's plan.</p>
+            ) : (
+              <ul className="card list">
+                {available.map((t) => (
+                  <li key={t.id}>
+                    <button
+                      type="button"
+                      className="row row-button add-row"
+                      onClick={() => edit({ extras: [...plan.extras, { taskId: t.id }] })}
+                      aria-label={`Add ${t.name}`}
+                    >
+                      <span className="row-main">
+                        <span className="row-title">{t.name}</span>
+                        <span className="row-meta">{duration(t.handsOnSec)}</span>
+                      </span>
+                      <span className="add-plus">
+                        <Icon name="plus" size={20} />
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ))}
+          {adding === 'oneOff' && (
+            <form
+              className="card pad stack-tight"
+              onSubmit={(e) => {
+                e.preventDefault();
+                addOneOff();
+              }}
+            >
+              <label className="field">
+                <span>What is it?</span>
+                <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Drop off parcel" />
+              </label>
+              <label className="field">
+                <span>Minutes</span>
+                <input inputMode="decimal" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
+              </label>
+              <button type="submit" className="btn" disabled={!name.trim() || value === undefined}>
+                Add to today
+              </button>
+            </form>
+          )}
+          <p className="hint">Just for today, after {flow.name}'s own tasks. The flow itself doesn't change.</p>
+        </section>
+
+        <section className="card pad">
+          <TimeField
+            label={wording.by}
+            value={props.finishBy}
+            onChange={(v) => edit({ mode: 'doneBy', time: v || undefined })}
+          />
+        </section>
+        <p className="muted plan-edit-summary">{props.summary}</p>
+        <button type="button" className="btn btn-primary" onClick={props.onClose}>
+          Done
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
+/** What you'll do, in order, with times: the same schedule the run will follow. */
+function ComingUp({ slots, finish, added }: { slots: Slot[]; finish: number; added: ReadonlySet<Id> }) {
   return (
     <section>
-      <div className="section-head">
-        <h2 className="section-title">Coming up</h2>
-        <span className="section-note">if you start now</span>
-      </div>
+      <h2 className="section-title">Coming up</h2>
       <ol className="card list plan-list">
         {slots.map((s) => (
           <li key={s.task.id} className="plan-row">
@@ -206,13 +333,14 @@ function ComingUp({ slots, finish, ending }: { slots: Slot[]; finish: number; en
             <span className="plan-name">
               {s.task.name}
               {s.task.optional && <span className="chip">optional</span>}
+              {added.has(s.task.id) && <span className="chip">added</span>}
             </span>
             <span className="plan-length">{taskLength(s.task)}</span>
           </li>
         ))}
         <li className="plan-row plan-finish">
           <span className="plan-time">{clock(ceilMinute(finish))}</span>
-          <span className="plan-name">{words(ending).finish}</span>
+          <span className="plan-name">{wording.finish}</span>
         </li>
       </ol>
     </section>
@@ -228,7 +356,7 @@ function AlsoToday({ flow, today, now }: { flow: Flow; today: string; now: numbe
     .flatMap((f) => {
       const plan = planFor(data, today, f.id);
       if (!plan?.time) return [];
-      const list = tasksOf(data, f);
+      const list = dayTasks(data.tasks, f, plan);
       const tasks = forSchedule(activeTasks(list, closeOver(list, plan.optionalOn)));
       const fixed = atTime(today, plan.time);
       const start = plan.mode === 'doneBy' ? latestStart(tasks, fixed) : fixed;
@@ -247,7 +375,7 @@ function AlsoToday({ flow, today, now }: { flow: Flow; today: string; now: numbe
               <span className="row-main">
                 <span className="row-title">{f.name}</span>
                 <span className="row-meta">
-                  start {clock(start)} · {words(f.ending).finishedAt} {clock(ceilMinute(finish))}
+                  start {clock(start)} · finish {clock(ceilMinute(finish))}
                 </span>
               </span>
               <Icon name="next" size={18} />
@@ -288,11 +416,11 @@ function RunningView({ run, now }: { run: Run; now: number }) {
   const suggestion = run.finishBy !== undefined ? suggestDrops(state, now, run.finishBy) : undefined;
   const later = p.current ? p.upcoming.slice(1) : p.upcoming;
   const stale = now - run.startedAt > 12 * 3_600_000;
-  const w = words(run.ending);
+  const w = wording;
 
   const finish = () => {
     const left = p.upcoming.length;
-    if (left > 0 && !confirm(`${left} task${left > 1 ? 's' : ''} not done. ${w.finishButton} anyway?`)) return;
+    if (left > 0 && !confirm(`${left} task${left > 1 ? 's' : ''} not done. ${w.finish} anyway?`)) return;
     finishRun();
   };
 
@@ -312,23 +440,21 @@ function RunningView({ run, now }: { run: Run; now: number }) {
           mode={mode}
           onCycle={cycleMode}
         />
-        <NowCard p={p} now={now} ending={run.ending} canUndo={lastUndoable(run) !== undefined} onEdit={setEditing} />
+        <NowCard p={p} now={now} canUndo={lastUndoable(run) !== undefined} onEdit={setEditing} />
       </div>
       <div style={{ height: header.spacerHeight }} aria-hidden="true" />
 
       <div className="stack">
         {stale && <StaleRun run={run} />}
 
-        {suggestion && run.finishBy !== undefined && (
-          <DropCard suggestion={suggestion} finishBy={run.finishBy} ending={run.ending} />
-        )}
+        {suggestion && run.finishBy !== undefined && <DropCard suggestion={suggestion} finishBy={run.finishBy} />}
 
         <div className="action-row">
           <button type="button" className="btn" onClick={() => setAdding(true)}>
             <Icon name="plus" size={20} /> One-off task
           </button>
           <button type="button" className="btn btn-door" onClick={finish}>
-            {w.finishButton}
+            {w.finish}
           </button>
         </div>
 
@@ -387,18 +513,18 @@ function Hero(props: {
 }) {
   const { run, outTheDoor, planned, now, overMs, mode } = props;
   const data = useData();
-  const w = words(run.ending);
+  const w = wording;
   const outAt = ceilMinute(outTheDoor);
   const countdown = timer(Math.ceil((outTheDoor - now) / 1000) * 1000);
   const change = drift(outTheDoor, planned);
-  const label = mode === 'countdown' ? w.finishIn : w.finish;
+  const label = mode === 'countdown' ? w.finishIn : w.finishAt;
   return (
     <section className={`hero hero-${mode}${overMs > 0 ? ' hero-over' : ''}`}>
       <button
         type="button"
         className="hero-main"
         onClick={props.onCycle}
-        aria-label={`${w.finish} at ${clock(outAt)}, in ${countdown}. Tap to switch the display.`}
+        aria-label={`${w.finishAt} ${clock(outAt)}, in ${countdown}. Tap to switch the display.`}
       >
         <span className="hero-label">{data.flows.length > 1 ? `${run.flowName} · ${label}` : label}</span>
         <span className="hero-figures">
@@ -428,15 +554,9 @@ function Hero(props: {
 }
 
 /** The current task, with its Done button. Slims to one line while the list is scrolled. */
-function NowCard(props: {
-  p: Projection;
-  now: number;
-  ending: Ending;
-  canUndo: boolean;
-  onEdit: (task: Task) => void;
-}) {
+function NowCard(props: { p: Projection; now: number; canUndo: boolean; onEdit: (task: Task) => void }) {
   const { p, now, canUndo } = props;
-  const w = words(props.ending);
+  const w = wording;
   const current = p.current;
   const next = p.upcoming[0];
   return (
@@ -461,7 +581,7 @@ function NowCard(props: {
       )}
       {p.allDone && (
         <button type="button" className="btn btn-primary btn-done" onClick={() => finishRun()}>
-          {w.finishButton}
+          {w.finish}
         </button>
       )}
       <div className="now-actions">
@@ -580,9 +700,9 @@ function DoneRow({ done }: { done: DoneTask }) {
   );
 }
 
-function DropCard(props: { suggestion: DropSuggestion; finishBy: number; ending: Ending }) {
+function DropCard(props: { suggestion: DropSuggestion; finishBy: number }) {
   const { suggestion } = props;
-  const w = words(props.ending);
+  const w = wording;
   const names = listNames(suggestion.drop.map((t) => t.name));
   return (
     <section className="card pad suggest">
@@ -593,7 +713,7 @@ function DropCard(props: { suggestion: DropSuggestion; finishBy: number; ending:
           </>
         ) : (
           <>
-            Dropping <strong>{names}</strong> gets you closest: {w.finishedAt}{' '}
+            Dropping <strong>{names}</strong> gets you closest: {w.finishAt.toLowerCase()}{' '}
             {clock(ceilMinute(suggestion.outTheDoor))}.
           </>
         )}

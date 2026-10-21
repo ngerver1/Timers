@@ -1,8 +1,7 @@
 # Out the Door
 
-A phone web app that shows, live, when you'll be out of the house in the morning (or done with dinner, or anything
-else you do as a list of tasks), updating as you tick tasks off. Installable, works offline, and keeps everything on
-the phone.
+A phone web app that shows, live, when you'll finish a routine (getting out of the house in the morning, getting
+dinner on the table), updating as you tick tasks off. Installable, works offline, and keeps everything on the phone.
 
 Live at **https://ngerver1.github.io/Timers/**
 
@@ -10,27 +9,29 @@ Live at **https://ngerver1.github.io/Timers/**
 
 A flow is a list of tasks you run through, like Morning, Wake up or Dinner. Each flow has its own tasks, order and
 optional switches, picked from one shared task list: change Brush teeth's minutes and it changes in every flow that
-uses it. A flow ends one of two ways, which only changes the wording:
+uses it. A flow is one of two kinds:
 
-- **Leaving the house**: "out the door" and "leave by"; Plan works out when to get up.
-- **Getting it done**: "done" and "done by", for things like dinner.
+- **Morning**: planned the night before, and Plan works out when to get up.
+- **Any time**: planned on the day, for things like dinner.
 
 ## Using it
 
-- **Today** shows today's plan for the picked flow: how long it takes, when you'll be out the door if you start
-  now (against your leave-by time), and **Coming up**, each task in order with its start time and length. It's the
-  same schedule the run follows. Other flows planned for today and not done yet are listed under **Also planned
-  today**; tap one to switch to it. Two buttons stay pinned above the tab bar: **Edit plan** switches today's
-  optional tasks on or off and sets the leave-by (or done-by) time, saved as today's plan (the same one the Plan tab
-  shows for today), and **Start** starts it.
+- **Today** shows today's plan for the picked flow: when you'll finish if you start now, how long it takes, your
+  finish-by time with the latest you can start and how much spare you have, and **Coming up**, each task in order
+  with its start time and length. It's the same schedule the run follows. Other flows planned for today and not done
+  yet are listed under **Also planned today**; tap one to switch to it. Two buttons stay pinned above the tab bar:
+  - **Edit plan**: switch optional tasks on or off, add other tasks for today (from your task list, or a one-off),
+    and set the finish-by time. It's saved as today's plan (the same one the Plan tab shows for today); added tasks
+    go after the flow's own and don't change the flow.
+  - **Start**.
 - **While a flow runs**:
   - the finish time; tap it to switch between the time, a countdown, and both;
-  - how far the estimate has moved since Start (+/− vs plan) and, with a leave-by time, how much spare you have;
+  - how far the estimate has moved since Start (+/− vs plan) and, with a finish-by time, how much spare you have;
   - the current task with a countdown ring, **Done**, Skip, Edit and Undo, and −5/−1/+1/+5 buttons to change its
     planned time for this run (it's raining: short walk);
   - when the current task runs over, the ring grows an amber arc (full when you're over by the whole planned time)
-    and a quiet "Running over" line under the clock counts up. Red is kept for being behind your leave-by time;
-  - one-off tasks, and **Out the door** (or **Finish**) to finish and save.
+    and a quiet "Running over" line under the clock counts up. Red is kept for being behind your finish-by time;
+  - one-off tasks, and **Finish** to finish and save.
   - Tap any task in Up next (or Edit on the current one) to fix its name or minutes for this run, and optionally for
     next time too.
 
@@ -38,7 +39,7 @@ uses it. A flow ends one of two ways, which only changes the wording:
   they expand again. The screen stays awake.
 
 - **Plan**: like Google Maps' "Arrive by" and "Depart at". Pick a flow and a day, its optional tasks, and either the
-  time to be done by (it works back to when to start, and when to get up) or the time to start (it works out when
+  time to finish by (it works back to when to start, and when to get up) or the time to start (it works out when
   you'll be done). That day's Today screen follows the plan, and each flow remembers its usual choice.
 - **Flows**: switch between flows or make a new one (empty, or with the same tasks as another). Drag to reorder (the
   order is the priority); tap a task (the pencil) to change its name, minutes, whether it's optional in this flow,
@@ -47,8 +48,8 @@ uses it. A flow ends one of two ways, which only changes the wording:
 - **History** is split by flow. It opens on a card per flow (deleted flows that still have runs too): how long it
   typically takes, how the last run went, and a sparkline of recent run times. Tap one for that flow's own page,
   built only from its runs (Back returns to the cards):
-  - the typical run time, how runs usually compare with the plan at Start, and how often you made your leave-by
-    (or done-by) time, over the last 10 runs;
+  - the typical run time, how runs usually compare with the plan at Start, and how often you made your finish-by
+    time, over the last 10 runs;
   - a chart of the last 14 runs' total times, each with a tick at what the plan at Start said; tap a column for its
     details;
   - insights: whether the flow is getting quicker or taking longer (the last 5 runs against the 5 before), the
@@ -57,7 +58,7 @@ uses it. A flow ends one of two ways, which only changes the wording:
   - past runs with their total time (the newest 5, the rest a tap away). Delete a run from the chart (pick its
     column, then **Delete**) or from the top of an opened run; a day with several runs can go in one tap. Tap one (or **Timeline** under the chart) for a Gantt-style timeline of
     what actually happened: a row per task on a clock axis, the bar from when you started it to when you finished,
-    amber for time beyond its plan, a tick where it was planned to end, and a line at your leave-by time;
+    amber for time beyond its plan, a tick where it was planned to end, and a line at your finish-by time;
   - **Task times**, folded away: each task's usual time in this flow (median of the flow's last 10 runs that
     included it) with one tap to adopt it. The Flows tab shows the same per-flow usual times. A task's minutes are
     shared by every flow that uses it, so adopting one changes it in those flows too.
@@ -67,7 +68,7 @@ uses it. A flow ends one of two ways, which only changes the wording:
 
 - You are the only worker, so tasks never overlap.
 - Whenever you're free you do the first task in your order whose "after" tasks are finished.
-- The finish (out the door) is when the last task finishes. Live, it's always _now + what's left_: the current task
+- The finish is when the last task finishes. Live, it's always _now + what's left_: the current task
   is assumed to have started at your last tap, so finishing early pulls the time in and running over pushes it out.
 - Done taps up to 30 seconds apart count as one batch (you did a few things, then tapped them all). The time since you
   were last free is shared between them in proportion to their standard times, in the order you tapped them.
@@ -75,7 +76,7 @@ uses it. A flow ends one of two ways, which only changes the wording:
   ignored. Switching an optional task on also switches on optional tasks it needs; switching one off also switches
   off optional tasks that need it.
 - When you're behind, the app re-simulates combinations of the optional tasks still to do and suggests the fewest
-  drops that get you back to your leave-by (or done-by) time.
+  drops that get you back to your finish-by time.
 
 ## Data
 

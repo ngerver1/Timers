@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { clockTicks, timeline, type TimelineRow } from '../../engine/timeline';
 import type { Run } from '../../engine/types';
-import { clock, clockParts, duration, words } from '../format';
+import { clock, clockParts, duration, wording } from '../format';
 
 /** Places a label at `p`% along the axis, kept inside the chart near either edge. */
 const place = (p: number): CSSProperties => ({
@@ -43,7 +43,7 @@ export function RunTimeline({ run }: { run: Run }) {
       {t.finishBy !== undefined && (
         <div className="gantt-axis gantt-foot" aria-hidden="true">
           <span style={place(pct(t.finishBy))}>
-            {words(run.ending).by.toLowerCase()} {clockParts(t.finishBy).time}
+            {wording.by.toLowerCase()} {clockParts(t.finishBy).time}
           </span>
         </div>
       )}

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { routineLength } from '../engine/plan';
 import { activeTasks } from '../engine/routine';
 import { add, done, editTask, makeRun, MIN, skip, task, undo } from '../engine/test-helpers';
-import { flowTasks, flowsUsing, ruleGraph } from './flows';
+import { dayTasks, flowTasks, flowsUsing, ruleGraph } from './flows';
 import { fromBackup, seedData, toBackup, validateData } from './schema';
 
 describe('store schema', () => {
@@ -128,7 +128,15 @@ describe('moving from version 1', () => {
   it('keeps plans and history, so usual times carry straight over', () => {
     const data = validateData(v1);
     expect(data.plans).toEqual([
-      { date: '2026-10-20', flowId: 'r1', optionalOn: ['t2'], mode: 'doneBy', time: '07:45', bufferMin: 10 },
+      {
+        date: '2026-10-20',
+        flowId: 'r1',
+        optionalOn: ['t2'],
+        extras: [],
+        mode: 'doneBy',
+        time: '07:45',
+        bufferMin: 10,
+      },
     ]);
     expect(data.runs[0]).toMatchObject({ flowId: 'r1', flowName: 'Morning', ending: 'leave', finishBy: 1_000 });
     expect(data.runs[0]!.events).toHaveLength(1);
@@ -159,5 +167,40 @@ describe('flows', () => {
     ]);
     expect(flowsUsing([data.flows[0]!, weekend], teeth!.id).map((f) => f.name)).toEqual(['Morning', 'Weekend']);
     expect(ruleGraph(data.tasks)).toHaveLength(data.tasks.length);
+  });
+
+  it("add a day's extra tasks after their own, once each, leaving out deleted ones", () => {
+    const data = seedData();
+    const [teeth, coffee] = data.tasks;
+    const weekend = {
+      id: 'w',
+      name: 'Weekend',
+      ending: 'done' as const,
+      items: [{ taskId: teeth!.id, optional: false }],
+    };
+    const parcel = { id: 'p', name: 'Drop off parcel', handsOnSec: 600, waitSec: 0, after: [] };
+    const extras = [
+      { taskId: coffee!.id },
+      { taskId: teeth!.id },
+      { taskId: 'gone' },
+      { oneOff: parcel },
+      { taskId: coffee!.id },
+    ];
+    expect(dayTasks(data.tasks, weekend, { extras }).map((t) => [t.name, t.optional])).toEqual([
+      ['Brush teeth', false],
+      ['Make coffee', false],
+      ['Drop off parcel', false],
+    ]);
+    expect(dayTasks(data.tasks, weekend).map((t) => t.name)).toEqual(['Brush teeth']);
+  });
+
+  it("keep a day's extras in backups, and read older plans as having none", () => {
+    const data = seedData();
+    const flowId = data.flows[0]!.id;
+    const oneOff = { id: 'p', name: 'Drop off parcel', handsOnSec: 600, waitSec: 0, after: [] };
+    const plan = { date: '2026-10-20', flowId, optionalOn: [], mode: 'doneBy' as const, bufferMin: 10 };
+    const withExtras = { ...data, plans: [{ ...plan, extras: [{ taskId: data.tasks[0]!.id }, { oneOff }] }] };
+    expect(fromBackup(toBackup(withExtras)).plans[0]!.extras).toEqual([{ taskId: data.tasks[0]!.id }, { oneOff }]);
+    expect(validateData({ ...data, plans: [plan] }).plans[0]!.extras).toEqual([]);
   });
 });

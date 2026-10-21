@@ -1,4 +1,4 @@
-// When you're behind: which optional tasks to drop to make leave-by.
+// When you're behind: which optional tasks to drop to finish by the finish-by time.
 import { applySkip, cloneState, projectState, type RunState } from './run';
 import type { Id, Task } from './types';
 

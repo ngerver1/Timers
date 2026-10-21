@@ -4,6 +4,7 @@ import { activeTasks } from '../engine/routine';
 import { atTime, ceilMinute, toHhmm } from '../engine/time';
 import type { Flow, Id, PlanMode, Task, TaskDef } from '../engine/types';
 import { forSchedule } from '../features';
+import type { Plan } from './schema';
 
 /** A flow's tasks, in its order, each with that flow's optional switch. */
 export function flowTasks(tasks: readonly TaskDef[], flow: Flow): Task[] {
@@ -12,6 +13,23 @@ export function flowTasks(tasks: readonly TaskDef[], flow: Flow): Task[] {
     const def = byId.get(i.taskId);
     return def ? [{ ...def, optional: i.optional }] : [];
   });
+}
+
+/**
+ * A flow's tasks for one day: its own, then any added to that day's plan. Extras
+ * already in the flow, or since deleted, are left out.
+ */
+export function dayTasks(tasks: readonly TaskDef[], flow: Flow, plan?: Pick<Plan, 'extras'>): Task[] {
+  const own = flowTasks(tasks, flow);
+  const seen = new Set(own.map((t) => t.id));
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  const extras = (plan?.extras ?? []).flatMap((e) => {
+    const def = 'oneOff' in e ? e.oneOff : byId.get(e.taskId);
+    if (!def || seen.has(def.id)) return [];
+    seen.add(def.id);
+    return [{ ...def, optional: false }];
+  });
+  return [...own, ...extras];
 }
 
 /** Every task with its rules. Rules are shared, so loops are checked across all of them. */

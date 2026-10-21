@@ -20,7 +20,7 @@ export default defineConfig({
       manifest: {
         name: 'Out the Door',
         short_name: 'Out the Door',
-        description: 'A live estimate of when you will be out the door in the morning.',
+        description: "A live estimate of when you'll finish your routine, updating as you tick tasks off.",
         lang: 'en-AU',
         theme_color: '#11161c',
         background_color: '#11161c',

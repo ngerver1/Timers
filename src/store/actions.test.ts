@@ -89,7 +89,15 @@ describe('flows', () => {
     expect(getData().flows).toHaveLength(2);
 
     finishRun(T0 + 30 * MIN);
-    savePlan({ date: tomorrow(), flowId: dinner, optionalOn: [], mode: 'doneBy', time: '18:00', bufferMin: 0 });
+    savePlan({
+      date: tomorrow(),
+      flowId: dinner,
+      optionalOn: [],
+      extras: [],
+      mode: 'doneBy',
+      time: '18:00',
+      bufferMin: 0,
+    });
     deleteFlow(dinner);
     expect(getData().flows.map((f) => f.name)).toEqual(['Morning']);
     expect(getData().activeFlowId).toBe(morning().id);
@@ -108,6 +116,27 @@ describe('starting a run', () => {
     expect([run.flowId, run.flowName, run.ending]).toEqual([dinner, 'Dinner', 'done']);
     expect(run.tasks.map((t) => t.name)).toEqual(['Make coffee']);
     expect(run.finishBy).toBe(atTime(dateKey(T0), '18:30'));
+  });
+
+  it("includes tasks added to today's plan, after the flow's own", () => {
+    const today = dateKey(T0);
+    const pack = idOf('Pack bag');
+    savePlan({
+      date: today,
+      flowId: morning().id,
+      optionalOn: [],
+      extras: [
+        { taskId: pack },
+        { oneOff: { id: 'parcel', name: 'Drop off parcel', handsOnSec: 600, waitSec: 0, after: [] } },
+      ],
+      mode: 'doneBy',
+      bufferMin: 10,
+    });
+    startRun([], undefined, T0);
+    const names = activeRun(getData())!.tasks.map((t) => t.name);
+    // Pack bag is already in Morning (switched off), so it isn't added a second time.
+    expect(names.slice(-2)).toEqual(['Do hair', 'Drop off parcel']);
+    expect(names.filter((n) => n === 'Pack bag')).toHaveLength(0);
   });
 
   it('goes back to the flow that ran when it finishes, even after looking at another', () => {
@@ -133,7 +162,15 @@ describe('starting a run', () => {
     expect(morning().usual).toBeUndefined();
     finishRun(T0 + 100 * MIN);
 
-    savePlan({ date: tomorrow(), flowId: morning().id, optionalOn: [], mode: 'startAt', time: '06:15', bufferMin: 10 });
+    savePlan({
+      date: tomorrow(),
+      flowId: morning().id,
+      optionalOn: [],
+      extras: [],
+      mode: 'startAt',
+      time: '06:15',
+      bufferMin: 10,
+    });
     expect(morning().usual).toEqual({ mode: 'startAt', time: '06:15' });
     startRun([], '07:10', T0 + 120 * MIN);
     expect(morning().usual).toEqual({ mode: 'startAt', time: '06:15' });
