@@ -5,24 +5,27 @@ import { Icon, StorageBanners, type IconName } from './ui/components';
 import { HistoryScreen } from './ui/screens/History';
 import { PlanScreen } from './ui/screens/Plan';
 import { SettingsScreen } from './ui/screens/Settings';
-import { FlowsScreen } from './ui/screens/Flows';
-import { TodayScreen } from './ui/screens/Today';
+import { FlowScreen } from './ui/screens/Flow';
+import { SetupScreen } from './ui/screens/Setup';
 import { useAppUpdate } from './ui/update';
 
-type Tab = 'today' | 'plan' | 'flows' | 'history' | 'settings';
+type Tab = 'flow' | 'plan' | 'setup' | 'history' | 'settings';
 
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
-  { id: 'today', label: 'Today', icon: 'today' },
+  { id: 'flow', label: 'Flow', icon: 'today' },
   { id: 'plan', label: 'Plan', icon: 'plan' },
-  { id: 'flows', label: 'Flows', icon: 'tasks' },
+  { id: 'setup', label: 'Setup', icon: 'tasks' },
   { id: 'history', label: 'History', icon: 'history' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
+/** Tabs that have been renamed, so old links and home-screen shortcuts still land on the right one. */
+const RENAMED: Record<string, Tab> = { today: 'flow', flows: 'setup', tasks: 'setup' };
+
 /** The tab is the first part of the hash: "#/history", or "#/history/<flow>" for one flow's history. */
 function tabFromHash(): Tab {
-  const id = (location.hash.replace(/^#\/?/, '').split('/')[0] ?? '').replace(/^tasks$/, 'flows'); // was Tasks
-  return TABS.find((t) => t.id === id)?.id ?? 'today';
+  const id = location.hash.replace(/^#\/?/, '').split('/')[0] ?? '';
+  return RENAMED[id] ?? TABS.find((t) => t.id === id)?.id ?? 'flow';
 }
 
 export function App() {
@@ -52,7 +55,7 @@ export function App() {
     <div className="app">
       <main className="screen">
         {/* The running screen shows these in its pinned header instead. */}
-        {!(running && tab === 'today') && <StorageBanners />}
+        {!(running && tab === 'flow') && <StorageBanners />}
         {update.ready && !running && tab !== 'settings' && (
           <div className="banner">
             <span>A new version is ready.</span>
@@ -61,9 +64,9 @@ export function App() {
             </button>
           </div>
         )}
-        {tab === 'today' && <TodayScreen />}
+        {tab === 'flow' && <FlowScreen />}
         {tab === 'plan' && <PlanScreen />}
-        {tab === 'flows' && <FlowsScreen />}
+        {tab === 'setup' && <SetupScreen />}
         {tab === 'history' && <HistoryScreen key={visit} />}
         {tab === 'settings' && <SettingsScreen update={update} />}
       </main>
@@ -72,7 +75,7 @@ export function App() {
           <button key={t.id} type="button" aria-current={tab === t.id ? 'page' : undefined} onClick={() => go(t.id)}>
             <span className="tab-icon">
               <Icon name={t.icon} />
-              {t.id === 'today' && running && <span className="tab-dot" />}
+              {t.id === 'flow' && running && <span className="tab-dot" />}
             </span>
             <span>{t.label}</span>
           </button>

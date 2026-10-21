@@ -50,7 +50,7 @@ const KINDS: [Ending, string][] = [
 const kindHint = (kind: Ending) =>
   kind === 'leave' ? 'Planned the night before, and Plan shows when to get up.' : 'Planned on the day.';
 
-export function FlowsScreen() {
+export function SetupScreen() {
   const data = useData();
   const flow = activeFlow(data);
   const tasks = tasksOf(data, flow);
@@ -73,7 +73,7 @@ export function FlowsScreen() {
   return (
     <div className="stack">
       <header className="page-head">
-        <h1>Flows</h1>
+        <h1>Setup</h1>
       </header>
       <FlowPicker
         flows={data.flows}

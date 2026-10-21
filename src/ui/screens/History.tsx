@@ -19,7 +19,7 @@ import { flowsUsing } from '../../store/flows';
 import { useData } from '../../store/store';
 import { Icon, Sheet } from '../components';
 import { clock, count, dayLabel, duration, earlyLate, listNames, minutes, shortDay, wording } from '../format';
-import { UsualTime } from './Flows';
+import { UsualTime } from './Setup';
 import { RunTimeline } from './RunTimeline';
 
 /** Flows to look back on: today's, then any deleted ones that still have runs. */

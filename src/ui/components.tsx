@@ -73,7 +73,7 @@ export function OptionalPicker(props: { tasks: Task[]; on: ReadonlySet<Id>; onCh
   const { tasks, on, onChange } = props;
   const optional = tasks.filter((t) => t.optional);
   if (optional.length === 0) {
-    return <p className="muted">No optional tasks. Mark some as optional on the Flows tab.</p>;
+    return <p className="muted">No optional tasks. Mark some as optional on the Setup tab.</p>;
   }
   return (
     <div className="card list">

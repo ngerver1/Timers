@@ -65,7 +65,7 @@ import {
   type HeroMode,
 } from '../hooks';
 
-export function TodayScreen() {
+export function FlowScreen() {
   const data = useData();
   const now = useNow(1000);
   const run = activeRun(data);
@@ -113,10 +113,13 @@ function StartView({ flow, now }: { flow: Flow; now: number }) {
 
   return (
     <div className="stack">
+      <header className="page-head">
+        <h1>Flow</h1>
+      </header>
       {several && <FlowPicker flows={data.flows} value={flow.id} onChange={selectFlow} />}
       {tasks.length === 0 ? (
         <p className="card pad note">
-          {flow.name} has no tasks yet. Add some on the Flows tab, or just for today under Edit plan.
+          {flow.name} has no tasks yet. Add some on the Setup tab, or just for today under Edit plan.
         </p>
       ) : (
         <>

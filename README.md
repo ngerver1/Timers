@@ -16,7 +16,7 @@ uses it. A flow is one of two kinds:
 
 ## Using it
 
-- **Today** shows today's plan for the picked flow: when you'll finish if you start now, how long it takes, your
+- **Flow** shows today's plan for the picked flow: when you'll finish if you start now, how long it takes, your
   finish-by time with the latest you can start and how much spare you have, and **Coming up**, each task in order
   with its start time and length. It's the same schedule the run follows. Other flows planned for today and not done
   yet are listed under **Also planned today**; tap one to switch to it. Two buttons stay pinned above the tab bar:
@@ -40,8 +40,8 @@ uses it. A flow is one of two kinds:
 
 - **Plan**: like Google Maps' "Arrive by" and "Depart at". Pick a flow and a day, its optional tasks, and either the
   time to finish by (it works back to when to start, and when to get up) or the time to start (it works out when
-  you'll be done). That day's Today screen follows the plan, and each flow remembers its usual choice.
-- **Flows**: switch between flows or make a new one (empty, or with the same tasks as another). Drag to reorder (the
+  you'll be done). That day's Flow tab follows the plan, and each flow remembers its usual choice.
+- **Setup**: switch between flows or make a new one (empty, or with the same tasks as another). Drag to reorder (the
   order is the priority); tap a task (the pencil) to change its name, minutes, whether it's optional in this flow,
   and its "after" rules. **Add from other flows** reuses tasks you already have; Settings renames, changes how a
   flow ends, or deletes it.
@@ -60,7 +60,7 @@ uses it. A flow is one of two kinds:
     what actually happened: a row per task on a clock axis, the bar from when you started it to when you finished,
     amber for time beyond its plan, a tick where it was planned to end, and a line at your finish-by time;
   - **Task times**, folded away: each task's usual time in this flow (median of the flow's last 10 runs that
-    included it) with one tap to adopt it. The Flows tab shows the same per-flow usual times. A task's minutes are
+    included it) with one tap to adopt it. The Setup tab shows the same per-flow usual times. A task's minutes are
     shared by every flow that uses it, so adopting one changes it in those flows too.
 - **Settings**: default get-up buffer, and backup export/import.
 

@@ -36,7 +36,7 @@ function FlowPlan({ flow }: { flow: Flow }) {
     time: flow.usual?.time,
     bufferMin: data.settings.bufferMin,
   };
-  // The flow's own tasks, then any added for that day on the Today screen.
+  // The flow's own tasks, then any added for that day on the Flow tab.
   const flowList = dayTasks(data.tasks, flow, plan);
   const extraNames = flowList.slice(tasksOf(data, flow).length).map((t) => t.name);
   const on = closeOver(flowList, plan.optionalOn);
@@ -47,7 +47,7 @@ function FlowPlan({ flow }: { flow: Flow }) {
   const start = fixed === undefined ? undefined : plan.mode === 'doneBy' ? latestStart(tasks, fixed) : fixed;
   const finish = fixed === undefined ? undefined : plan.mode === 'doneBy' ? fixed : finishFrom(tasks, fixed);
   const getUp = start === undefined ? undefined : start - (wakes ? plan.bufferMin : 0) * MINUTE;
-  // Every change saves, so the Today screen on that day picks it up.
+  // Every change saves, so the Flow tab on that day picks it up.
   const save = (change: Partial<Plan>) => savePlan({ ...plan, optionalOn: [...on], ...change, date, flowId: flow.id });
 
   return (
@@ -127,7 +127,7 @@ function FlowPlan({ flow }: { flow: Flow }) {
       {saved ? (
         <div className="stack-tight">
           <p className="muted">
-            Saved. Start will use this for {flow.name} on {dayLabel(date)}.
+            Saved. The Flow tab will use this for {flow.name} on {dayLabel(date)}.
           </p>
           <button type="button" className="btn" onClick={() => deletePlan(date, flow.id)}>
             Clear plan
