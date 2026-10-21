@@ -4,7 +4,7 @@ import { activeTasks } from '../engine/routine';
 import { atTime, ceilMinute, toHhmm } from '../engine/time';
 import type { Flow, Id, PlanMode, Task, TaskDef } from '../engine/types';
 import { forSchedule } from '../features';
-import type { Plan } from './schema';
+import type { PlanChange, PlanExtra } from './schema';
 
 /** A flow's tasks, in its order, each with that flow's optional switch. */
 export function flowTasks(tasks: readonly TaskDef[], flow: Flow): Task[] {
@@ -15,11 +15,27 @@ export function flowTasks(tasks: readonly TaskDef[], flow: Flow): Task[] {
   });
 }
 
+/** One task in a day's plan, with how the day differs from the flow. */
+export interface DayTask {
+  task: Task;
+  /** Added for the day: from your task list, or a one-off. */
+  added: boolean;
+  oneOff: boolean;
+  /** Name or minutes changed for the day. */
+  changed: boolean;
+  leftOut: boolean;
+}
+
 /**
- * A flow's tasks for one day: its own, then any added to that day's plan. Extras
- * already in the flow, or since deleted, are left out.
+ * Every task in a day's plan, in order: the flow's own, then any added for the
+ * day, with the day's changes applied. Extras already in the flow, or since
+ * deleted, are left out.
  */
-export function dayTasks(tasks: readonly TaskDef[], flow: Flow, plan?: Pick<Plan, 'extras'>): Task[] {
+export function planTasks(
+  tasks: readonly TaskDef[],
+  flow: Flow,
+  plan?: { extras?: readonly PlanExtra[]; changes?: readonly PlanChange[] },
+): DayTask[] {
   const own = flowTasks(tasks, flow);
   const seen = new Set(own.map((t) => t.id));
   const byId = new Map(tasks.map((t) => [t.id, t]));
@@ -27,9 +43,37 @@ export function dayTasks(tasks: readonly TaskDef[], flow: Flow, plan?: Pick<Plan
     const def = 'oneOff' in e ? e.oneOff : byId.get(e.taskId);
     if (!def || seen.has(def.id)) return [];
     seen.add(def.id);
-    return [{ ...def, optional: false }];
+    return [{ task: { ...def, optional: false }, added: true, oneOff: 'oneOff' in e }];
   });
-  return [...own, ...extras];
+  const changes = new Map((plan?.changes ?? []).map((c) => [c.taskId, c]));
+  return [...own.map((task) => ({ task, added: false, oneOff: false })), ...extras].map((d) => {
+    const c = changes.get(d.task.id);
+    return {
+      ...d,
+      task: c ? { ...d.task, name: c.name ?? d.task.name, handsOnSec: c.handsOnSec ?? d.task.handsOnSec } : d.task,
+      changed: c?.name !== undefined || c?.handsOnSec !== undefined,
+      leftOut: c?.leftOut === true,
+    };
+  });
+}
+
+/** The tasks a day's plan will run, as the engine sees them: the ones not left out. */
+export function dayTasks(...args: Parameters<typeof planTasks>): Task[] {
+  return planTasks(...args).flatMap((d) => (d.leftOut ? [] : [d.task]));
+}
+
+/**
+ * A day's changes with one task's change merged in. Fields set to undefined are
+ * cleared, and a change left with nothing in it is dropped.
+ */
+export function withChange(
+  changes: readonly PlanChange[],
+  taskId: Id,
+  change: Omit<PlanChange, 'taskId'>,
+): PlanChange[] {
+  const next: PlanChange = { ...changes.find((c) => c.taskId === taskId), ...change, taskId };
+  const rest = changes.filter((c) => c.taskId !== taskId);
+  return next.name === undefined && next.handsOnSec === undefined && !next.leftOut ? rest : [...rest, next];
 }
 
 /** Every task with its rules. Rules are shared, so loops are checked across all of them. */

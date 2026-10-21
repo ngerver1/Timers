@@ -4,8 +4,8 @@ import { activeTasks, closeOver } from '../../engine/routine';
 import { atTime, ceilMinute, dateKey, MINUTE, nextMorning } from '../../engine/time';
 import type { Flow } from '../../engine/types';
 import { forSchedule } from '../../features';
-import { activeFlow, deletePlan, planFor, savePlan, selectFlow, tasksOf } from '../../store/actions';
-import { dayTasks } from '../../store/flows';
+import { activeFlow, deletePlan, planFor, savePlan, selectFlow } from '../../store/actions';
+import { dayTasks, planTasks } from '../../store/flows';
 import type { Plan } from '../../store/schema';
 import { useData } from '../../store/store';
 import { BigClock, FlowPicker, OptionalPicker, Segmented, Stepper, TimeField } from '../components';
@@ -32,13 +32,16 @@ function FlowPlan({ flow }: { flow: Flow }) {
     flowId: flow.id,
     optionalOn: [],
     extras: [],
+    changes: [],
     mode: flow.usual?.mode ?? 'doneBy',
     time: flow.usual?.time,
     bufferMin: data.settings.bufferMin,
   };
-  // The flow's own tasks, then any added for that day on the Flow tab.
+  // The flow's own tasks, then any added for that day on the Flow tab, as changed there.
+  const dayList = planTasks(data.tasks, flow, plan);
   const flowList = dayTasks(data.tasks, flow, plan);
-  const extraNames = flowList.slice(tasksOf(data, flow).length).map((t) => t.name);
+  const extraNames = dayList.flatMap((d) => (d.added ? [d.task.name] : []));
+  const leftOutNames = dayList.flatMap((d) => (d.leftOut ? [d.task.name] : []));
   const on = closeOver(flowList, plan.optionalOn);
   const tasks = forSchedule(activeTasks(flowList, on));
   const length = routineLength(tasks);
@@ -72,7 +75,16 @@ function FlowPlan({ flow }: { flow: Flow }) {
       <section>
         <h2 className="section-title">Optional tasks</h2>
         <OptionalPicker tasks={flowList} on={on} onChange={(next) => save({ optionalOn: [...next] })} />
-        {extraNames.length > 0 && <p className="hint">Also added for this day: {listNames(extraNames)}.</p>}
+        {(extraNames.length > 0 || leftOutNames.length > 0) && (
+          <p className="hint">
+            {[
+              extraNames.length > 0 && `Also added for this day: ${listNames(extraNames)}.`,
+              leftOutNames.length > 0 && `Left out: ${listNames(leftOutNames)}.`,
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          </p>
+        )}
       </section>
 
       <section className="card pad stack-tight">

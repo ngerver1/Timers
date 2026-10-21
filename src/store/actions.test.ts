@@ -94,6 +94,7 @@ describe('flows', () => {
       flowId: dinner,
       optionalOn: [],
       extras: [],
+      changes: [],
       mode: 'doneBy',
       time: '18:00',
       bufferMin: 0,
@@ -129,6 +130,7 @@ describe('starting a run', () => {
         { taskId: pack },
         { oneOff: { id: 'parcel', name: 'Drop off parcel', handsOnSec: 600, waitSec: 0, after: [] } },
       ],
+      changes: [],
       mode: 'doneBy',
       bufferMin: 10,
     });
@@ -137,6 +139,26 @@ describe('starting a run', () => {
     // Pack bag is already in Morning (switched off), so it isn't added a second time.
     expect(names.slice(-2)).toEqual(['Do hair', 'Drop off parcel']);
     expect(names.filter((n) => n === 'Pack bag')).toHaveLength(0);
+  });
+
+  it("runs today's changes: one task shorter, another left out, the tasks themselves untouched", () => {
+    savePlan({
+      date: dateKey(T0),
+      flowId: morning().id,
+      optionalOn: [],
+      extras: [],
+      changes: [
+        { taskId: idOf('Brush teeth'), handsOnSec: 60 },
+        { taskId: idOf('Make coffee'), leftOut: true },
+      ],
+      mode: 'doneBy',
+      bufferMin: 10,
+    });
+    startRun([], undefined, T0);
+    const tasks = activeRun(getData())!.tasks;
+    expect(tasks.find((t) => t.name === 'Brush teeth')?.handsOnSec).toBe(60);
+    expect(tasks.some((t) => t.name === 'Make coffee')).toBe(false);
+    expect(getData().tasks.find((t) => t.name === 'Brush teeth')?.handsOnSec).not.toBe(60);
   });
 
   it('goes back to the flow that ran when it finishes, even after looking at another', () => {
@@ -167,6 +189,7 @@ describe('starting a run', () => {
       flowId: morning().id,
       optionalOn: [],
       extras: [],
+      changes: [],
       mode: 'startAt',
       time: '06:15',
       bufferMin: 10,

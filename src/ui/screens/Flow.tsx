@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { finishFrom, latestStart } from '../../engine/plan';
-import { activeTasks, closeOver } from '../../engine/routine';
+import { activeTasks, closeOver, switchOff, switchOn } from '../../engine/routine';
 import { foldRun, lastUndoable, plannedFinish, projectState, type DoneTask, type Projection } from '../../engine/run';
 import { simulate, type Slot } from '../../engine/simulate';
 import { suggestDrops, type DropSuggestion } from '../../engine/suggest';
@@ -23,10 +23,9 @@ import {
   skipTasks,
   startRun,
   tapDone,
-  tasksOf,
   undoLast,
 } from '../../store/actions';
-import { dayTasks, flowsUsing, offeredFinishBy } from '../../store/flows';
+import { dayTasks, flowsUsing, offeredFinishBy, planTasks, withChange, type DayTask } from '../../store/flows';
 import { newId, type Plan, type PlanExtra } from '../../store/schema';
 import { useData } from '../../store/store';
 import { forSchedule } from '../../features';
@@ -34,7 +33,6 @@ import {
   BigClock,
   FlowPicker,
   Icon,
-  OptionalPicker,
   Segmented,
   Sheet,
   SlackPill,
@@ -93,14 +91,15 @@ function StartView({ flow, now }: { flow: Flow; now: number }) {
     flowId: flow.id,
     optionalOn: [],
     extras: [],
+    changes: [],
     mode: flow.usual?.mode ?? 'doneBy',
     time: flow.usual?.time,
     bufferMin: data.settings.bufferMin,
   };
   const [editing, setEditing] = useState(false);
 
-  const tasks = dayTasks(data.tasks, flow, plan); // the flow's own, then today's extras
-  const added = new Set(tasks.slice(tasksOf(data, flow).length).map((t) => t.id));
+  const list = planTasks(data.tasks, flow, plan); // the flow's own, then today's extras, as changed for today
+  const tasks = dayTasks(data.tasks, flow, plan); // the ones not left out
   const selected = closeOver(tasks, plan.optionalOn); // tasks may have been edited since
   const finishBy = offeredFinishBy(tasks, selected, saved ?? flow.usual, today);
   const edit = (change: Partial<Plan>) =>
@@ -121,7 +120,9 @@ function StartView({ flow, now }: { flow: Flow; now: number }) {
       {several && <FlowPicker flows={data.flows} value={flow.id} onChange={selectFlow} />}
       {tasks.length === 0 ? (
         <p className="card pad note">
-          {flow.name} has no tasks yet. Add some on the Setup tab, or just for today under Edit plan.
+          {list.length === 0
+            ? `${flow.name} has no tasks yet. Add some on the Setup tab, or just for today under Edit plan.`
+            : `Every task in ${flow.name} is left out today. Put some back under Edit plan.`}
         </p>
       ) : (
         <>
@@ -141,7 +142,7 @@ function StartView({ flow, now }: { flow: Flow; now: number }) {
               </div>
             )}
           </section>
-          <ComingUp slots={schedule.slots} finish={finish} added={added} />
+          <ComingUp slots={schedule.slots} finish={finish} list={list} />
         </>
       )}
       <AlsoToday flow={flow} today={today} now={now} />
@@ -163,6 +164,7 @@ function StartView({ flow, now }: { flow: Flow; now: number }) {
         <EditPlanSheet
           flow={flow}
           plan={plan}
+          list={list}
           tasks={tasks}
           selected={selected}
           finishBy={finishBy}
@@ -177,10 +179,11 @@ function StartView({ flow, now }: { flow: Flow; now: number }) {
   );
 }
 
-/** The day's plan, changed in place: optional tasks, tasks added for the day, and the finish-by time. */
+/** The day's plan, changed in place: its tasks, tasks added for the day, and the finish-by time. */
 function EditPlanSheet(props: {
   flow: Flow;
   plan: Plan;
+  list: DayTask[];
   tasks: Task[];
   selected: ReadonlySet<Id>;
   finishBy: string;
@@ -188,33 +191,58 @@ function EditPlanSheet(props: {
   summary: string;
   onClose: () => void;
 }) {
-  const { flow, plan, tasks, edit } = props;
+  const { flow, plan, list, tasks, selected, edit } = props;
   const data = useData();
+  // One thing open at a time: a task being changed, or a way to add one.
+  const [open, setOpen] = useState<Id | null>(null);
+  const [adding, setAdding] = useState<'list' | 'new' | null>(null);
   // A one-off for today's plan, or into the flow for every run (the same as adding it on the Setup tab).
   const [scope, setScope] = useState<'today' | 'flow'>('today');
-  const [adding, setAdding] = useState<'list' | 'new' | null>(null);
   const [name, setName] = useState('');
   const [minutes, setMinutes] = useState('5');
-  const [added, setAdded] = useState('');
+  const [status, setStatus] = useState('');
   const value = parseMinutes(minutes);
-  const inPlan = new Set(tasks.map((t) => t.id));
+  const inPlan = new Set(list.map((d) => d.task.id));
   const available = data.tasks.filter((t) => !inPlan.has(t.id));
-  const extraTask = (e: PlanExtra) => ('oneOff' in e ? e.oneOff : data.tasks.find((t) => t.id === e.taskId));
   const where = scope === 'today' ? 'for today' : `to ${flow.name}`;
+  const toggleOpen = (id: Id) => {
+    setOpen(open === id ? null : id);
+    setAdding(null);
+  };
+  const toggleAdding = (what: 'list' | 'new') => {
+    setAdding(adding === what ? null : what);
+    setOpen(null);
+  };
+  const done = (text: string) => {
+    setOpen(null);
+    setStatus(text);
+  };
   const addExisting = (t: TaskDef) => {
     if (scope === 'today') edit({ extras: [...plan.extras, { taskId: t.id }] });
     else addToFlow(flow.id, t.id);
-    setAdded(`${t.name} added ${where}.`);
+    setStatus(`${t.name} added ${where}.`);
   };
   const addNew = () => {
     if (!name.trim() || value === undefined) return;
     const def = { id: newId(), name: name.trim(), handsOnSec: Math.round(value * 60), waitSec: 0, after: [] };
     if (scope === 'today') edit({ extras: [...plan.extras, { oneOff: def }] });
     else saveTaskInFlow(flow.id, def, false);
-    setAdded(`${def.name} added ${where}.`);
+    setStatus(`${def.name} added ${where}.`);
     setName('');
     setMinutes('5');
     setAdding(null);
+  };
+  const leaveOut = (d: DayTask, out: boolean) => {
+    edit({ changes: withChange(plan.changes, d.task.id, { leftOut: out || undefined }) });
+    done(`${d.task.name} ${out ? 'left out today' : 'put back'}.`);
+  };
+  const remove = (d: DayTask) => {
+    const idOf = (e: PlanExtra) => ('oneOff' in e ? e.oneOff.id : e.taskId);
+    edit({
+      extras: plan.extras.filter((e) => idOf(e) !== d.task.id),
+      changes: plan.changes.filter((c) => c.taskId !== d.task.id),
+    });
+    done(`${d.task.name} removed.`);
   };
   const scopePicker = (
     <Segmented
@@ -225,37 +253,63 @@ function EditPlanSheet(props: {
       ]}
       onChange={(next) => {
         setScope(next);
-        setAdded('');
+        setStatus('');
       }}
     />
   );
   return (
     <Sheet title={`Today's plan · ${flow.name}`} onClose={props.onClose}>
       <div className="stack">
-        {tasks.some((t) => t.optional) && (
+        {list.length > 0 && (
           <section>
-            <h3 className="section-title">Optional today</h3>
-            <OptionalPicker tasks={tasks} on={props.selected} onChange={(next) => edit({ optionalOn: [...next] })} />
+            <h3 className="section-title">Tasks</h3>
+            <ul className="card list">
+              {list.map((d) => (
+                <PlanTaskRow
+                  key={d.task.id}
+                  item={d}
+                  tasks={tasks}
+                  on={selected.has(d.task.id)}
+                  open={open === d.task.id}
+                  onOpen={() => toggleOpen(d.task.id)}
+                  onSwitch={(on) => edit({ optionalOn: [...(on ? switchOn : switchOff)(tasks, selected, d.task.id)] })}
+                  onPutBack={() => leaveOut(d, false)}
+                >
+                  {open === d.task.id && (
+                    <PlanTaskEditor
+                      item={d}
+                      flow={flow}
+                      plan={plan}
+                      edit={edit}
+                      onLeaveOut={() => leaveOut(d, true)}
+                      onRemove={() => remove(d)}
+                      onDone={done}
+                    />
+                  )}
+                </PlanTaskRow>
+              ))}
+            </ul>
           </section>
         )}
 
         <section className="stack-tight">
+          {status && (
+            <p className="note-text" role="status">
+              {status}
+            </p>
+          )}
           <div className="action-row">
             {/* Tasks you've made that this flow doesn't have yet, from another flow or ones you took out. */}
             {available.length > 0 && (
               <button
                 type="button"
                 className={`btn${adding === 'list' ? ' on' : ''}`}
-                onClick={() => setAdding(adding === 'list' ? null : 'list')}
+                onClick={() => toggleAdding('list')}
               >
                 <Icon name="plus" size={20} /> Existing task
               </button>
             )}
-            <button
-              type="button"
-              className={`btn${adding === 'new' ? ' on' : ''}`}
-              onClick={() => setAdding(adding === 'new' ? null : 'new')}
-            >
+            <button type="button" className={`btn${adding === 'new' ? ' on' : ''}`} onClick={() => toggleAdding('new')}>
               <Icon name="plus" size={20} /> New task
             </button>
           </div>
@@ -314,44 +368,7 @@ function EditPlanSheet(props: {
               </button>
             </form>
           )}
-          {added && (
-            <p className="note-text" role="status">
-              {added}
-            </p>
-          )}
         </section>
-
-        {plan.extras.length > 0 && (
-          <section>
-            <h3 className="section-title">Added for today</h3>
-            <ul className="card list">
-              {plan.extras.map((e, i) => {
-                const t = extraTask(e);
-                return (
-                  t && (
-                    <li key={t.id} className="row">
-                      <div className="row-main">
-                        <div className="row-title">
-                          {t.name}
-                          {'oneOff' in e && <span className="chip">one-off</span>}
-                        </div>
-                        <div className="row-meta">{taskLength(t)}</div>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn btn-quiet"
-                        aria-label={`Remove ${t.name}`}
-                        onClick={() => edit({ extras: plan.extras.filter((_, j) => j !== i) })}
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  )
-                );
-              })}
-            </ul>
-          </section>
-        )}
 
         <section className="card pad">
           <TimeField
@@ -369,8 +386,180 @@ function EditPlanSheet(props: {
   );
 }
 
+/** One of the day's tasks in Edit plan. Tap it to change it; an optional one has its switch too. */
+function PlanTaskRow(props: {
+  item: DayTask;
+  tasks: Task[];
+  on: boolean;
+  open: boolean;
+  onOpen: () => void;
+  onSwitch: (on: boolean) => void;
+  onPutBack: () => void;
+  children?: ReactNode;
+}) {
+  const { item, open } = props;
+  const { task } = item;
+  if (item.leftOut) {
+    return (
+      <li className="row plan-task left-out">
+        <div className="row-main">
+          <div className="row-title">{task.name}</div>
+          <div className="row-meta">left out today</div>
+        </div>
+        <button type="button" className="btn btn-small" onClick={props.onPutBack} aria-label={`Put back ${task.name}`}>
+          Put back
+        </button>
+      </li>
+    );
+  }
+  // Switching it on brings these along.
+  const needs = task.optional
+    ? task.after.flatMap((id) => props.tasks.find((t) => t.id === id && t.optional)?.name ?? [])
+    : [];
+  return (
+    <li className={`plan-task${open ? ' open' : ''}`}>
+      <div className="row">
+        <button
+          type="button"
+          className="row-main row-button"
+          onClick={props.onOpen}
+          aria-expanded={open}
+          aria-label={`Edit ${task.name}`}
+        >
+          <span className="row-title">
+            {task.name}
+            {task.optional && <span className="chip">optional</span>}
+            {item.added && <span className="chip">added</span>}
+            {item.changed && <span className="chip">changed</span>}
+          </span>
+          <span className="row-meta">
+            {taskLength(task)}
+            {needs.length > 0 && ` · needs ${listNames(needs)}`}
+            <Icon name="edit" size={14} />
+          </span>
+        </button>
+        {task.optional && (
+          <label className="row-switch">
+            <input
+              type="checkbox"
+              role="switch"
+              checked={props.on}
+              aria-label={task.name}
+              onChange={(e) => props.onSwitch(e.target.checked)}
+            />
+            <span className="switch" aria-hidden="true" />
+          </label>
+        )}
+      </div>
+      {props.children}
+    </li>
+  );
+}
+
+/** Changes one of the day's tasks: for today only, or the task itself for every run. */
+function PlanTaskEditor(props: {
+  item: DayTask;
+  flow: Flow;
+  plan: Plan;
+  edit: (change: Partial<Plan>) => void;
+  onLeaveOut: () => void;
+  onRemove: () => void;
+  onDone: (status: string) => void;
+}) {
+  const { item, flow, plan, edit } = props;
+  const { task } = item;
+  const data = useData();
+  const def = data.tasks.find((t) => t.id === task.id); // a one-off isn't in your task list
+  const [name, setName] = useState(task.name);
+  const [minutes, setMinutes] = useState(minutesText(task.handsOnSec));
+  // Only the flow's own tasks run every time; one added for today changes for today.
+  const [scope, setScope] = useState<'today' | 'flow'>('today');
+  const value = parseMinutes(minutes);
+  const ok = name.trim() !== '' && value !== undefined;
+  const elsewhere = flowsUsing(data.flows, task.id).flatMap((f) => (f.id === flow.id ? [] : [f.name]));
+
+  const save = () => {
+    if (!ok) return;
+    const fixed = { name: name.trim(), handsOnSec: Math.round(value * 60) };
+    if (scope === 'today' && fixed.name === task.name && fixed.handsOnSec === task.handsOnSec) {
+      props.onDone('');
+      return;
+    }
+    if (!def) {
+      edit({
+        extras: plan.extras.map((e) =>
+          'oneOff' in e && e.oneOff.id === task.id ? { oneOff: { ...e.oneOff, ...fixed } } : e,
+        ),
+      });
+    } else if (scope === 'flow') {
+      saveTaskDef({ ...def, ...fixed });
+      // The task itself has it now, so today needs no change of its own.
+      if (item.changed)
+        edit({ changes: withChange(plan.changes, task.id, { name: undefined, handsOnSec: undefined }) });
+    } else {
+      edit({
+        changes: withChange(plan.changes, task.id, {
+          name: fixed.name === def.name ? undefined : fixed.name,
+          handsOnSec: fixed.handsOnSec === def.handsOnSec ? undefined : fixed.handsOnSec,
+        }),
+      });
+    }
+    props.onDone(`${fixed.name} changed ${scope === 'flow' ? 'for every run' : 'for today'}.`);
+  };
+
+  return (
+    <form
+      className="plan-task-edit stack-tight"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save();
+      }}
+    >
+      <div className="field-pair">
+        <label className="field">
+          <span>Name</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label className="field field-minutes">
+          <span>Minutes</span>
+          <input inputMode="decimal" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
+        </label>
+      </div>
+      {!item.added && (
+        <Segmented
+          value={scope}
+          options={[
+            ['today', 'One-off'],
+            ['flow', 'Every run'],
+          ]}
+          onChange={setScope}
+        />
+      )}
+      {scope === 'flow' && elsewhere.length > 0 && <p className="hint">Also changes it in {listNames(elsewhere)}.</p>}
+      <div className="action-row">
+        <button type="submit" className="btn" disabled={!ok}>
+          Save
+        </button>
+        {item.added ? (
+          <button type="button" className="btn btn-quiet" onClick={props.onRemove}>
+            Remove
+          </button>
+        ) : (
+          !task.optional && (
+            <button type="button" className="btn btn-quiet" onClick={props.onLeaveOut}>
+              Leave out today
+            </button>
+          )
+        )}
+      </div>
+    </form>
+  );
+}
+
 /** What you'll do, in order, with times: the same schedule the run will follow. */
-function ComingUp({ slots, finish, added }: { slots: Slot[]; finish: number; added: ReadonlySet<Id> }) {
+function ComingUp({ slots, finish, list }: { slots: Slot[]; finish: number; list: DayTask[] }) {
+  const day = new Map(list.map((d) => [d.task.id, d]));
+  const leftOut = list.flatMap((d) => (d.leftOut ? [d.task.name] : []));
   return (
     <section>
       <h2 className="section-title">Coming up</h2>
@@ -381,7 +570,8 @@ function ComingUp({ slots, finish, added }: { slots: Slot[]; finish: number; add
             <span className="plan-name">
               {s.task.name}
               {s.task.optional && <span className="chip">optional</span>}
-              {added.has(s.task.id) && <span className="chip">added</span>}
+              {day.get(s.task.id)?.added && <span className="chip">added</span>}
+              {day.get(s.task.id)?.changed && <span className="chip">changed</span>}
             </span>
             <span className="plan-length">{taskLength(s.task)}</span>
           </li>
@@ -391,6 +581,7 @@ function ComingUp({ slots, finish, added }: { slots: Slot[]; finish: number; add
           <span className="plan-name">{wording.finish}</span>
         </li>
       </ol>
+      {leftOut.length > 0 && <p className="hint plan-left-out">Left out today: {listNames(leftOut)}</p>}
     </section>
   );
 }

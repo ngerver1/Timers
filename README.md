@@ -18,12 +18,15 @@ uses it. A flow is one of two kinds:
 
 - **Flow** shows today's plan for the picked flow: when you'll finish if you start now, how long it takes, your
   finish-by time with the latest you can start and how much spare you have, and **Coming up**, each task in order
-  with its start time and length. It's the same schedule the run follows. Other flows planned for today and not done
-  yet are listed under **Also planned today**; tap one to switch to it. Two buttons stay pinned above the tab bar:
-  - **Edit plan**: switch optional tasks on or off, set the finish-by time, and add a **New task** or an
-    **Existing task** (one you already have that the flow doesn't). Each asks **One-off** (today's plan only, after
-    the flow's own tasks) or **Every run** (into the flow for good, the same as on the Setup tab). Today's choices
-    are saved as today's plan, the same one the Plan tab shows for today.
+  with its start time and length, marked if it's optional, added or changed for today, and anything left out listed
+  under it. It's the same schedule the run follows. Other flows planned for today and not done yet are listed under
+  **Also planned today**; tap one to switch to it. Two buttons stay pinned above the tab bar:
+  - **Edit plan**: every task in today's plan, in order. Tap one to change its name or minutes, either **One-off**
+    (today only) or **Every run** (the task itself, in every flow that has it), or to **Leave out today** (**Put
+    back** undoes it). Optional tasks have their on/off switch in the same list. Add a **New task** or an **Existing
+    task** (one you already have that the flow doesn't): **One-off** puts it in today's plan only, after the flow's
+    own tasks, and **Every run** adds it to the flow for good, the same as on the Setup tab. Set the finish-by time
+    here too. It's all saved as today's plan, the same one the Plan tab shows for today.
   - **Start**.
 - **While a flow runs**:
   - the finish time; tap it to switch between the time, a countdown, and both;

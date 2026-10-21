@@ -427,7 +427,8 @@ p {
   color: var(--muted);
 }
 
-.toggle-row input {
+.toggle-row input,
+.row-switch input {
   position: absolute;
   opacity: 0;
   pointer-events: none;
@@ -458,17 +459,17 @@ p {
     background 0.15s;
 }
 
-.toggle-row input:checked + .switch {
+:is(.toggle-row, .row-switch) input:checked + .switch {
   background: var(--accent);
   border-color: var(--accent);
 }
 
-.toggle-row input:checked + .switch::after {
+:is(.toggle-row, .row-switch) input:checked + .switch::after {
   transform: translateX(20px);
   background: var(--accent-ink);
 }
 
-.toggle-row input:focus-visible + .switch {
+:is(.toggle-row, .row-switch) input:focus-visible + .switch {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -1815,6 +1816,33 @@ p {
 
 .plan-edit-summary {
   margin: 0 4px;
+}
+
+/* The day's tasks in Edit plan: tap one to change it, switch an optional one on or off. */
+
+.row-switch {
+  flex: none;
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  padding-left: 8px;
+  cursor: pointer;
+}
+
+.plan-task-edit {
+  padding: 0 16px 16px;
+}
+
+.plan-task-edit .field-minutes {
+  flex: 0 0 6.5em;
+}
+
+.plan-task.left-out .row-title {
+  color: var(--muted);
+}
+
+.plan-left-out {
+  margin: 8px 4px 0;
 }
 
 /* ---- Today's plan ---- */

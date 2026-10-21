@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { routineLength } from '../engine/plan';
 import { activeTasks } from '../engine/routine';
 import { add, done, editTask, makeRun, MIN, skip, task, undo } from '../engine/test-helpers';
-import { dayTasks, flowTasks, flowsUsing, ruleGraph } from './flows';
+import { dayTasks, flowTasks, flowsUsing, planTasks, ruleGraph, withChange } from './flows';
 import { fromBackup, seedData, toBackup, validateData } from './schema';
 
 describe('store schema', () => {
@@ -133,6 +133,7 @@ describe('moving from version 1', () => {
         flowId: 'r1',
         optionalOn: ['t2'],
         extras: [],
+        changes: [],
         mode: 'doneBy',
         time: '07:45',
         bufferMin: 10,
@@ -194,13 +195,64 @@ describe('flows', () => {
     expect(dayTasks(data.tasks, weekend).map((t) => t.name)).toEqual(['Brush teeth']);
   });
 
-  it("keep a day's extras in backups, and read older plans as having none", () => {
+  it("apply a day's changes to its own tasks and its extras, and drop the ones left out", () => {
+    const data = seedData();
+    const [teeth, coffee, breakfast] = data.tasks;
+    const weekend = {
+      id: 'w',
+      name: 'Weekend',
+      ending: 'done' as const,
+      items: [
+        { taskId: teeth!.id, optional: false },
+        { taskId: coffee!.id, optional: false },
+      ],
+    };
+    const plan = {
+      extras: [{ taskId: breakfast!.id }],
+      changes: [
+        { taskId: teeth!.id, handsOnSec: 60 },
+        { taskId: coffee!.id, leftOut: true },
+        { taskId: breakfast!.id, name: 'Feed the dog' },
+        { taskId: 'gone', name: 'Not in the plan' },
+      ],
+    };
+    const day = planTasks(data.tasks, weekend, plan);
+    expect(day.map((d) => [d.task.name, d.task.handsOnSec, d.added, d.changed, d.leftOut])).toEqual([
+      ['Brush teeth', 60, false, true, false],
+      ['Make coffee', coffee!.handsOnSec, false, false, true],
+      ['Feed the dog', breakfast!.handsOnSec, true, true, false],
+    ]);
+    expect(dayTasks(data.tasks, weekend, plan).map((t) => t.name)).toEqual(['Brush teeth', 'Feed the dog']);
+    expect(teeth!.handsOnSec).not.toBe(60);
+  });
+
+  it("merge one task's change into a day's, dropping a change that's back to nothing", () => {
+    const changes = [
+      { taskId: 'a', handsOnSec: 60 },
+      { taskId: 'b', leftOut: true },
+    ];
+    expect(withChange(changes, 'a', { name: 'Quick shower' })).toEqual([
+      { taskId: 'b', leftOut: true },
+      { taskId: 'a', name: 'Quick shower', handsOnSec: 60 },
+    ]);
+    expect(withChange(changes, 'a', { handsOnSec: undefined })).toEqual([{ taskId: 'b', leftOut: true }]);
+    expect(withChange(changes, 'b', { leftOut: undefined })).toEqual([{ taskId: 'a', handsOnSec: 60 }]);
+    expect(withChange([], 'c', { leftOut: true })).toEqual([{ taskId: 'c', leftOut: true }]);
+  });
+
+  it("keep a day's extras and changes in backups, and read older plans as having none", () => {
     const data = seedData();
     const flowId = data.flows[0]!.id;
     const oneOff = { id: 'p', name: 'Drop off parcel', handsOnSec: 600, waitSec: 0, after: [] };
     const plan = { date: '2026-10-20', flowId, optionalOn: [], mode: 'doneBy' as const, bufferMin: 10 };
-    const withExtras = { ...data, plans: [{ ...plan, extras: [{ taskId: data.tasks[0]!.id }, { oneOff }] }] };
-    expect(fromBackup(toBackup(withExtras)).plans[0]!.extras).toEqual([{ taskId: data.tasks[0]!.id }, { oneOff }]);
-    expect(validateData({ ...data, plans: [plan] }).plans[0]!.extras).toEqual([]);
+    const extras = [{ taskId: data.tasks[0]!.id }, { oneOff }];
+    const changes = [
+      { taskId: data.tasks[1]!.id, name: 'Coffee', handsOnSec: 120 },
+      { taskId: data.tasks[2]!.id, leftOut: true },
+    ];
+    const kept = fromBackup(toBackup({ ...data, plans: [{ ...plan, extras, changes }] })).plans[0]!;
+    expect([kept.extras, kept.changes]).toEqual([extras, changes]);
+    const older = validateData({ ...data, plans: [plan] }).plans[0]!;
+    expect([older.extras, older.changes]).toEqual([[], []]);
   });
 });

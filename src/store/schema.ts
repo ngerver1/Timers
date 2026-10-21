@@ -7,6 +7,15 @@ export const STORE_VERSION = 2;
 /** A task added to one day's plan only: one from your task list, or a one-off for that day. */
 export type PlanExtra = { taskId: Id } | { oneOff: TaskDef };
 
+/** A change to one of the day's tasks, for that day only. */
+export interface PlanChange {
+  taskId: Id;
+  name?: string;
+  handsOnSec?: number;
+  /** Left out of the day's plan. */
+  leftOut?: boolean;
+}
+
 export interface Plan {
   /** The day it's for, YYYY-MM-DD. */
   date: string;
@@ -14,6 +23,8 @@ export interface Plan {
   optionalOn: Id[];
   /** Added for that day, after the flow's own tasks. */
   extras: PlanExtra[];
+  /** Tasks changed or left out for that day. */
+  changes: PlanChange[];
   /** Which end is fixed: done by `time` (work back), or start at `time` (work forward). */
   mode: PlanMode;
   /** Local "HH:MM". */
@@ -184,6 +195,16 @@ function extra(v: unknown): PlanExtra {
   return isObj(v.oneOff) ? { oneOff: taskDef(v.oneOff) } : { taskId: str(v.taskId, 'plan task') };
 }
 
+function change(v: unknown): PlanChange {
+  if (!isObj(v)) return fail('plan change');
+  return {
+    taskId: str(v.taskId, 'plan change'),
+    name: optStr(v.name, 'plan change name'),
+    handsOnSec: v.handsOnSec === undefined ? undefined : Math.max(0, num(v.handsOnSec, 'plan change minutes')),
+    leftOut: v.leftOut === true || undefined,
+  };
+}
+
 function plan(v: unknown): Plan {
   if (!isObj(v)) return fail('plan');
   return {
@@ -192,6 +213,7 @@ function plan(v: unknown): Plan {
     optionalOn: strs(v.optionalOn, 'plan options'),
     // Plans saved before extras existed have none.
     extras: v.extras === undefined ? [] : arr(v.extras, 'plan tasks', extra),
+    changes: v.changes === undefined ? [] : arr(v.changes, 'plan changes', change),
     mode: planMode(v.mode),
     time: optStr(v.time, 'plan time'),
     bufferMin: num(v.bufferMin, 'plan buffer'),
@@ -230,6 +252,7 @@ function fromV1(v: Record<string, unknown>): Omit<StoreData, 'settings' | 'activ
         flowId: str(p.routineId, 'plan routine'),
         optionalOn: strs(p.optionalOn, 'plan options'),
         extras: [],
+        changes: [],
         mode: 'doneBy' as const,
         time: optStr(p.leaveBy, 'plan leave-by'),
         bufferMin: num(p.bufferMin, 'plan buffer'),
