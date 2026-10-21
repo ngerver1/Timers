@@ -20,9 +20,10 @@ uses it. A flow is one of two kinds:
   finish-by time with the latest you can start and how much spare you have, and **Coming up**, each task in order
   with its start time and length. It's the same schedule the run follows. Other flows planned for today and not done
   yet are listed under **Also planned today**; tap one to switch to it. Two buttons stay pinned above the tab bar:
-  - **Edit plan**: switch optional tasks on or off, add other tasks for today (from your task list, or a one-off),
-    and set the finish-by time. It's saved as today's plan (the same one the Plan tab shows for today); added tasks
-    go after the flow's own and don't change the flow.
+  - **Edit plan**: switch optional tasks on or off, set the finish-by time, and add a task (one from your task
+    list, or a new one). Choose **Just today** to add it to today's plan only, after the flow's own tasks, or
+    **Every time** to add it to the flow for good (the same as on the Setup tab), so it's timed every run. Today's
+    choices are saved as today's plan, the same one the Plan tab shows for today.
   - **Start**.
 - **While a flow runs**:
   - the finish time; tap it to switch between the time, a countdown, and both;

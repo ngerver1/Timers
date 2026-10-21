@@ -5,11 +5,12 @@ import { foldRun, lastUndoable, plannedFinish, projectState, type DoneTask, type
 import { simulate, type Slot } from '../../engine/simulate';
 import { suggestDrops, type DropSuggestion } from '../../engine/suggest';
 import { atTime, ceilMinute, dateKey, upcomingTime } from '../../engine/time';
-import type { Flow, Id, Run, Task } from '../../engine/types';
+import type { Flow, Id, Run, Task, TaskDef } from '../../engine/types';
 import {
   activeFlow,
   activeRun,
   addOneOff,
+  addToFlow,
   discardRun,
   editRunTask,
   finishRun,
@@ -17,6 +18,7 @@ import {
   planFor,
   savePlan,
   saveTaskDef,
+  saveTaskInFlow,
   selectFlow,
   skipTasks,
   startRun,
@@ -188,17 +190,28 @@ function EditPlanSheet(props: {
 }) {
   const { flow, plan, tasks, edit } = props;
   const data = useData();
-  const [adding, setAdding] = useState<'list' | 'oneOff' | null>(null);
+  // Just today's plan, or the flow itself (the same as adding it on the Setup tab).
+  const [scope, setScope] = useState<'today' | 'flow'>('today');
+  const [adding, setAdding] = useState<'list' | 'new' | null>(null);
   const [name, setName] = useState('');
   const [minutes, setMinutes] = useState('5');
+  const [added, setAdded] = useState('');
   const value = parseMinutes(minutes);
   const inPlan = new Set(tasks.map((t) => t.id));
   const available = data.tasks.filter((t) => !inPlan.has(t.id));
   const extraTask = (e: PlanExtra) => ('oneOff' in e ? e.oneOff : data.tasks.find((t) => t.id === e.taskId));
-  const addOneOff = () => {
+  const where = scope === 'today' ? 'for today' : `to ${flow.name}`;
+  const addExisting = (t: TaskDef) => {
+    if (scope === 'today') edit({ extras: [...plan.extras, { taskId: t.id }] });
+    else addToFlow(flow.id, t.id);
+    setAdded(`${t.name} added ${where}.`);
+  };
+  const addNew = () => {
     if (!name.trim() || value === undefined) return;
-    const oneOff = { id: newId(), name: name.trim(), handsOnSec: Math.round(value * 60), waitSec: 0, after: [] };
-    edit({ extras: [...plan.extras, { oneOff }] });
+    const def = { id: newId(), name: name.trim(), handsOnSec: Math.round(value * 60), waitSec: 0, after: [] };
+    if (scope === 'today') edit({ extras: [...plan.extras, { oneOff: def }] });
+    else saveTaskInFlow(flow.id, def, false);
+    setAdded(`${def.name} added ${where}.`);
     setName('');
     setMinutes('5');
     setAdding(null);
@@ -214,8 +227,100 @@ function EditPlanSheet(props: {
         )}
 
         <section className="stack-tight">
-          <h3 className="section-title">Added for today</h3>
-          {plan.extras.length > 0 && (
+          <h3 className="section-title">Add a task</h3>
+          <Segmented
+            value={scope}
+            options={[
+              ['today', 'Just today'],
+              ['flow', 'Every time'],
+            ]}
+            onChange={(next) => {
+              setScope(next);
+              setAdded('');
+            }}
+          />
+          <p className="hint">
+            {scope === 'today'
+              ? `Just for today, after ${flow.name}'s own tasks. ${flow.name} itself doesn't change.`
+              : `Added to ${flow.name} for good, the same as on the Setup tab, so it's timed every run.`}
+          </p>
+          <div className="action-row">
+            <button
+              type="button"
+              className={`btn${adding === 'list' ? ' on' : ''}`}
+              onClick={() => setAdding(adding === 'list' ? null : 'list')}
+            >
+              <Icon name="plus" size={20} /> Your tasks
+            </button>
+            <button
+              type="button"
+              className={`btn${adding === 'new' ? ' on' : ''}`}
+              onClick={() => setAdding(adding === 'new' ? null : 'new')}
+            >
+              <Icon name="plus" size={20} /> New task
+            </button>
+          </div>
+          {adding === 'list' &&
+            (available.length === 0 ? (
+              <p className="muted">Every task you have is already in today's plan. Make a new one instead.</p>
+            ) : (
+              <ul className="card list">
+                {available.map((t) => (
+                  <li key={t.id}>
+                    <button
+                      type="button"
+                      className="row row-button add-row"
+                      onClick={() => addExisting(t)}
+                      aria-label={`Add ${t.name}`}
+                    >
+                      <span className="row-main">
+                        <span className="row-title">{t.name}</span>
+                        <span className="row-meta">{duration(t.handsOnSec)}</span>
+                      </span>
+                      <span className="add-plus">
+                        <Icon name="plus" size={20} />
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ))}
+          {adding === 'new' && (
+            <form
+              className="card pad stack-tight"
+              onSubmit={(e) => {
+                e.preventDefault();
+                addNew();
+              }}
+            >
+              <label className="field">
+                <span>What is it?</span>
+                <input
+                  autoFocus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={scope === 'today' ? 'Drop off parcel' : 'Make the bed'}
+                />
+              </label>
+              <label className="field">
+                <span>Minutes</span>
+                <input inputMode="decimal" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
+              </label>
+              <button type="submit" className="btn" disabled={!name.trim() || value === undefined}>
+                {scope === 'today' ? 'Add to today' : `Add to ${flow.name}`}
+              </button>
+            </form>
+          )}
+          {added && (
+            <p className="note-text" role="status">
+              {added}
+            </p>
+          )}
+        </section>
+
+        {plan.extras.length > 0 && (
+          <section>
+            <h3 className="section-title">Added for today</h3>
             <ul className="card list">
               {plan.extras.map((e, i) => {
                 const t = extraTask(e);
@@ -242,71 +347,8 @@ function EditPlanSheet(props: {
                 );
               })}
             </ul>
-          )}
-          <div className="action-row">
-            <button
-              type="button"
-              className={`btn${adding === 'list' ? ' on' : ''}`}
-              onClick={() => setAdding(adding === 'list' ? null : 'list')}
-            >
-              <Icon name="plus" size={20} /> Your tasks
-            </button>
-            <button
-              type="button"
-              className={`btn${adding === 'oneOff' ? ' on' : ''}`}
-              onClick={() => setAdding(adding === 'oneOff' ? null : 'oneOff')}
-            >
-              <Icon name="plus" size={20} /> One-off
-            </button>
-          </div>
-          {adding === 'list' &&
-            (available.length === 0 ? (
-              <p className="muted">Every task you have is already in today's plan.</p>
-            ) : (
-              <ul className="card list">
-                {available.map((t) => (
-                  <li key={t.id}>
-                    <button
-                      type="button"
-                      className="row row-button add-row"
-                      onClick={() => edit({ extras: [...plan.extras, { taskId: t.id }] })}
-                      aria-label={`Add ${t.name}`}
-                    >
-                      <span className="row-main">
-                        <span className="row-title">{t.name}</span>
-                        <span className="row-meta">{duration(t.handsOnSec)}</span>
-                      </span>
-                      <span className="add-plus">
-                        <Icon name="plus" size={20} />
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ))}
-          {adding === 'oneOff' && (
-            <form
-              className="card pad stack-tight"
-              onSubmit={(e) => {
-                e.preventDefault();
-                addOneOff();
-              }}
-            >
-              <label className="field">
-                <span>What is it?</span>
-                <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Drop off parcel" />
-              </label>
-              <label className="field">
-                <span>Minutes</span>
-                <input inputMode="decimal" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
-              </label>
-              <button type="submit" className="btn" disabled={!name.trim() || value === undefined}>
-                Add to today
-              </button>
-            </form>
-          )}
-          <p className="hint">Just for today, after {flow.name}'s own tasks. The flow itself doesn't change.</p>
-        </section>
+          </section>
+        )}
 
         <section className="card pad">
           <TimeField
