@@ -1,6 +1,6 @@
 // What a finished run actually looked like, for History's timeline: when each
 // task was done, against what it was planned to take.
-import { foldRun } from './run';
+import { allDoneAt, foldRun } from './run';
 import { MINUTE } from './time';
 import type { Run, Task } from './types';
 
@@ -26,6 +26,8 @@ export interface Timeline {
   finishBy?: number;
   /** Done tasks in the order you did them, then skipped ones, then ones left undone. */
   rows: TimelineRow[];
+  /** From the last task to Finish, when everything got done: time that wasn't any task's. Half a minute or more. */
+  finishingUp?: { start: number; end: number };
 }
 
 export function timeline(run: Run): Timeline {
@@ -57,10 +59,16 @@ export function timeline(run: Run): Timeline {
     run.finishBy !== undefined && run.finishBy >= from && run.finishBy <= end + (end - from) / 2
       ? run.finishBy
       : undefined;
+  const doneAt = allDoneAt(state);
+  const finishingUp =
+    run.finishedAt !== undefined && doneAt !== undefined && run.finishedAt - doneAt >= 30_000
+      ? { start: doneAt, end: run.finishedAt }
+      : undefined;
   return {
     from,
     to: Math.max(end, finishBy ?? end),
     finishBy,
+    finishingUp,
     rows: [
       ...done,
       ...left.filter((t) => state.skipped.has(t.id)).map((t) => row(t, 'skipped')),

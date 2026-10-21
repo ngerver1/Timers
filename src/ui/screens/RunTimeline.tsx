@@ -24,6 +24,17 @@ export function RunTimeline({ run }: { run: Run }) {
   const [open, setOpen] = useState<Id | null>(null);
   const pct = (ms: number) => ((ms - t.from) / (t.to - t.from)) * 100;
   const ticks = clockTicks(t.from, t.to);
+  const row = (r: TimelineRow) => (
+    <Row
+      key={r.task.id}
+      row={r}
+      pct={pct}
+      open={open === r.task.id}
+      onOpen={() => setOpen(open === r.task.id ? null : r.task.id)}
+    >
+      {open === r.task.id && <TookEditor run={run} row={r} onDone={() => setOpen(null)} />}
+    </Row>
+  );
   return (
     <div className="gantt">
       <div className="gantt-axis" aria-hidden="true">
@@ -41,17 +52,9 @@ export function RunTimeline({ run }: { run: Run }) {
           <i className="gantt-line gantt-deadline" style={{ left: `${pct(t.finishBy)}%` }} aria-hidden="true" />
         )}
         <ol className="gantt-rows" aria-label="What you did, in order">
-          {t.rows.map((r) => (
-            <Row
-              key={r.task.id}
-              row={r}
-              pct={pct}
-              open={open === r.task.id}
-              onOpen={() => setOpen(open === r.task.id ? null : r.task.id)}
-            >
-              {open === r.task.id && <TookEditor run={run} row={r} onDone={() => setOpen(null)} />}
-            </Row>
-          ))}
+          {t.rows.filter((r) => r.status === 'done').map(row)}
+          {t.finishingUp && <FinishingUpRow span={t.finishingUp} pct={pct} />}
+          {t.rows.filter((r) => r.status !== 'done').map(row)}
         </ol>
       </div>
       {t.finishBy !== undefined && (
@@ -139,6 +142,28 @@ function Row(props: {
         </span>
       </button>
       {props.children}
+    </li>
+  );
+}
+
+/** From the last task to Finish: time that wasn't any task's. */
+function FinishingUpRow({ span, pct }: { span: { start: number; end: number }; pct: (ms: number) => number }) {
+  const took = halfMinutes(span.end - span.start);
+  return (
+    <li
+      className="gantt-row gantt-misc"
+      aria-label={`Finishing up: ${clock(span.start)} to ${clock(span.end)}, ${duration(took)}`}
+    >
+      <div className="gantt-label">
+        <span className="gantt-name">Finishing up</span>
+        <span className="gantt-took">{duration(took)}</span>
+      </div>
+      <div className="gantt-track" aria-hidden="true">
+        <span
+          className="gantt-bar"
+          style={{ left: `${pct(span.start)}%`, width: `${pct(span.end) - pct(span.start)}%` }}
+        />
+      </div>
     </li>
   );
 }

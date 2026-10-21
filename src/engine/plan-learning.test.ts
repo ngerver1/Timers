@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { median, tidySeconds, usualTimes } from './learning';
+import { finishingUpSeconds, median, tidySeconds, usualFinishingUp, usualTimes } from './learning';
 import { finishFrom, latestStart, routineLength } from './plan';
 import { activeTasks } from './routine';
 import { foldRun } from './run';
@@ -34,6 +34,25 @@ describe('learning', () => {
       tookMinutes(20),
     ];
     expect(usualTimes(runs).get('teeth')).toEqual({ medianSec: 240, samples: 10 });
+  });
+
+  it('times finishing up: from the last task to Finish, once everything got done or skipped', () => {
+    const tasks = [task('teeth', 3), task('walk', 20)];
+    const finished = (events: Parameters<typeof makeRun>[1], finishedMin: number) => ({
+      ...makeRun(tasks, events),
+      finishedAt: at(finishedMin),
+    });
+    const allDone = finished([done('teeth', 3), done('walk', 24)], 28);
+    const skipped = finished([done('teeth', 3), skip(['walk'], 5)], 6);
+    const left = finished([done('teeth', 3)], 10);
+    expect([allDone, skipped, left].map(finishingUpSeconds)).toEqual([240, 60, undefined]);
+    expect(finishingUpSeconds(makeRun(tasks, [done('teeth', 3), done('walk', 24)]))).toBeUndefined(); // not finished
+    // Newest first; runs that left tasks undone don't count.
+    expect(usualFinishingUp([allDone, left, skipped, finished([done('teeth', 3), done('walk', 23)], 33)])).toEqual({
+      medianSec: 240,
+      samples: 3,
+    });
+    expect(usualFinishingUp([left])).toBeUndefined();
   });
 
   it('rounds an adopted time to 15 seconds', () => {

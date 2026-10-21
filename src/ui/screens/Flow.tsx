@@ -2,7 +2,15 @@ import { arrayMove } from '@dnd-kit/sortable';
 import { useMemo, useState, type ReactNode } from 'react';
 import { finishFrom, latestStart } from '../../engine/plan';
 import { activeTasks, closeOver, switchOff, switchOn } from '../../engine/routine';
-import { foldRun, lastUndoable, plannedFinish, projectState, type DoneTask, type Projection } from '../../engine/run';
+import {
+  allDoneAt,
+  foldRun,
+  lastUndoable,
+  plannedFinish,
+  projectState,
+  type DoneTask,
+  type Projection,
+} from '../../engine/run';
 import { simulate, type Slot } from '../../engine/simulate';
 import { suggestDrops, type DropSuggestion } from '../../engine/suggest';
 import { atTime, ceilMinute, dateKey, upcomingTime } from '../../engine/time';
@@ -740,7 +748,13 @@ function RunningView({ run, now }: { run: Run; now: number }) {
           mode={mode}
           onCycle={cycleMode}
         />
-        <NowCard p={p} now={now} canUndo={lastUndoable(run) !== undefined} onEdit={setEditing} />
+        <NowCard
+          p={p}
+          now={now}
+          doneAt={allDoneAt(state)}
+          canUndo={lastUndoable(run) !== undefined}
+          onEdit={setEditing}
+        />
       </div>
       <div style={{ height: header.spacerHeight }} aria-hidden="true" />
 
@@ -753,9 +767,12 @@ function RunningView({ run, now }: { run: Run; now: number }) {
           <button type="button" className="btn" onClick={() => setAdding(true)}>
             <Icon name="plus" size={20} /> One-off task
           </button>
-          <button type="button" className="btn btn-door" onClick={finish}>
-            {w.finish}
-          </button>
+          {/* Once everything's done, the Finish above is the one to tap. */}
+          {!p.allDone && (
+            <button type="button" className="btn btn-door" onClick={finish}>
+              {w.finish}
+            </button>
+          )}
         </div>
 
         {later.length > 0 && (
@@ -854,7 +871,14 @@ function Hero(props: {
 }
 
 /** The current task, with its Done button. Slims to one line while the list is scrolled. */
-function NowCard(props: { p: Projection; now: number; canUndo: boolean; onEdit: (task: Task) => void }) {
+function NowCard(props: {
+  p: Projection;
+  now: number;
+  /** When the last task was done, once everything is: finishing up runs from then until Finish. */
+  doneAt?: number;
+  canUndo: boolean;
+  onEdit: (task: Task) => void;
+}) {
   const { p, now, canUndo } = props;
   const w = wording;
   const current = p.current;
@@ -864,11 +888,13 @@ function NowCard(props: { p: Projection; now: number; canUndo: boolean; onEdit: 
       <div className="now-top">
         <div className="now-text">
           <div className="now-label">{current ? 'Now' : p.allDone ? 'All done' : 'Nothing ready yet'}</div>
-          <div className="now-name">{current ? current.task.name : p.allDone ? w.allDone : next?.task.name}</div>
+          <div className="now-name">{current ? current.task.name : p.allDone ? 'Finishing up' : next?.task.name}</div>
           {current && <AdjustPlanned task={current.task} />}
+          {p.allDone && <div className="now-detail">until you tap {w.finish}</div>}
           {!current && next && <div className="now-detail">can start at {clock(next.start)}</div>}
         </div>
         {current && <TaskTimer key={current.task.id} slot={current} now={now} />}
+        {p.allDone && props.doneAt !== undefined && <FinishingUpTimer since={props.doneAt} now={now} />}
       </div>
       {current && (
         <button
@@ -954,6 +980,22 @@ function TaskTimer({ slot, now }: { slot: Slot; now: number }) {
       <span className="task-timer-text">
         {text}
         <small>{over ? 'over' : 'left'}</small>
+      </span>
+    </div>
+  );
+}
+
+/** Time spent finishing up so far. It has no planned time, so it just counts up. */
+function FinishingUpTimer({ since, now }: { since: number; now: number }) {
+  const text = timer(Math.max(0, Math.floor((now - since) / 1000) * 1000));
+  return (
+    <div className="task-timer" role="timer" aria-label={`${text} finishing up`}>
+      <svg viewBox="0 0 36 36" aria-hidden="true">
+        <circle className="track" cx="18" cy="18" r="16" />
+      </svg>
+      <span className="task-timer-text">
+        {text}
+        <small>so far</small>
       </span>
     </div>
   );

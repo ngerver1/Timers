@@ -1,5 +1,5 @@
 // What each task usually takes, from finished mornings.
-import { foldRun } from './run';
+import { allDoneAt, foldRun } from './run';
 import type { Id, Run } from './types';
 
 export const LEARN_FROM = 10;
@@ -32,6 +32,19 @@ export function usualTimes(runs: readonly Run[], n = LEARN_FROM): Map<Id, Usual>
     }
   }
   return new Map([...samples].map(([id, list]) => [id, { medianSec: median(list)!, samples: list.length }]));
+}
+
+/** Seconds from the last task to tapping Finish, in a finished run where everything got done (or skipped). */
+export function finishingUpSeconds(run: Run): number | undefined {
+  if (run.finishedAt === undefined) return undefined;
+  const doneAt = allDoneAt(foldRun(run));
+  return doneAt === undefined ? undefined : Math.max(0, Math.round((run.finishedAt - doneAt) / 1000));
+}
+
+/** The usual time spent finishing up, over the last `n` runs that got everything done. `runs` must be newest first. */
+export function usualFinishingUp(runs: readonly Run[], n = LEARN_FROM): Usual | undefined {
+  const list = runs.flatMap((r) => finishingUpSeconds(r) ?? []).slice(0, n);
+  return list.length > 0 ? { medianSec: median(list)!, samples: list.length } : undefined;
 }
 
 /** Rounds to the nearest 15 s, so adopting a median gives a tidy standard time. */

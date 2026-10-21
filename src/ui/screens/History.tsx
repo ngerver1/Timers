@@ -11,7 +11,7 @@ import {
   type Summary,
   type Trend,
 } from '../../engine/insights';
-import { LEARN_FROM, tidySeconds, usualTimes, type Usual } from '../../engine/learning';
+import { LEARN_FROM, tidySeconds, usualFinishingUp, usualTimes, type Usual } from '../../engine/learning';
 import { MINUTE } from '../../engine/time';
 import type { Flow, Id, Run, TaskDef } from '../../engine/types';
 import { deleteRuns, finishedRuns, setHandsOn } from '../../store/actions';
@@ -155,6 +155,7 @@ function FlowHistory(props: { flow: Flow; runs: Run[]; onBack?: () => void }) {
   const data = useData();
   const times = useMemo(() => runTimes(runs), [runs]);
   const usual = useMemo(() => usualTimes(runs), [runs]);
+  const finishing = useMemo(() => usualFinishingUp(runs), [runs]);
   const summary = summarise(times);
   const flowTasks = useMemo(() => {
     // A deleted flow's tasks are the ones its runs used, if they're still in your list.
@@ -200,13 +201,16 @@ function FlowHistory(props: { flow: Flow; runs: Run[]; onBack?: () => void }) {
         </p>
       )}
 
-      {flowTasks.length > 0 && times.length > 0 && <TaskTimes flow={flow} tasks={flowTasks} usual={usual} />}
+      {flowTasks.length > 0 && times.length > 0 && (
+        <TaskTimes flow={flow} tasks={flowTasks} usual={usual} finishing={finishing} />
+      )}
     </div>
   );
 }
 
 /** Each task's usual time in this flow, folded away: the insight above points at the one that matters. */
-function TaskTimes(props: { flow: Flow; tasks: TaskDef[]; usual: ReadonlyMap<Id, Usual> }) {
+function TaskTimes(props: { flow: Flow; tasks: TaskDef[]; usual: ReadonlyMap<Id, Usual>; finishing?: Usual }) {
+  const { finishing } = props;
   return (
     <details className="card task-times">
       <summary>
@@ -233,6 +237,17 @@ function TaskTimes(props: { flow: Flow; tasks: TaskDef[]; usual: ReadonlyMap<Id,
             </li>
           );
         })}
+        {finishing && (
+          <li className="row usual-row">
+            <div className="row-main">
+              <div className="row-title">Finishing up</div>
+              <div className="row-meta">
+                {`From your last task to ${wording.finish}: usually ${duration(Math.round(finishing.medianSec / 30) * 30)}`}{' '}
+                ({count(finishing.samples, 'time')})
+              </div>
+            </div>
+          </li>
+        )}
       </ul>
     </details>
   );

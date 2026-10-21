@@ -1576,6 +1576,16 @@ p {
   font-variant-numeric: tabular-nums;
 }
 
+/* Finishing up: time after the last task that wasn't any task's, so hatched rather than solid. */
+.gantt-misc .gantt-name {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.gantt-misc .gantt-bar {
+  background: repeating-linear-gradient(135deg, var(--chart-rest) 0 3px, transparent 3px 6px);
+}
+
 .gantt-off .gantt-name {
   font-weight: 500;
   color: var(--muted);

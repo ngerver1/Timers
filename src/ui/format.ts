@@ -140,5 +140,4 @@ export const wording = {
   by: 'Finish by',
   byTime: 'finish-by time',
   toBeBy: 'to finish by',
-  allDone: "That's everything",
 } as const;

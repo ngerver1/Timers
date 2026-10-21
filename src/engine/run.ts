@@ -123,6 +123,11 @@ export function projectState(state: RunState, now: number): Projection {
   };
 }
 
+/** When everything had been done or skipped, if it all was. From then until Finish is finishing up. */
+export function allDoneAt(state: RunState): number | undefined {
+  return state.tasks.every((t) => state.done.has(t.id) || state.skipped.has(t.id)) ? state.freeAt : undefined;
+}
+
 /** The estimate at the moment you tapped Start. */
 export function plannedFinish(run: Run): number {
   return simulate({ tasks: run.tasks, from: run.startedAt }).finish;

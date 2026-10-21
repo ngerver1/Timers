@@ -12,6 +12,15 @@ const finishedRun = (events: Parameters<typeof makeRun>[1], finishedMin: number,
 });
 
 describe('timeline', () => {
+  it('shows the time from the last task to Finish as finishing up, when everything got done', () => {
+    const all = finishedRun([done('teeth', 3), done('walk', 23), done('change', 28), done('pack', 33)], 37);
+    expect(timeline(all).finishingUp).toEqual({ start: at(33), end: at(37) });
+    // Not when tasks were left, nor for a tap on Finish straight after the last Done.
+    expect(timeline(finishedRun([done('teeth', 3)], 10)).finishingUp).toBeUndefined();
+    const quick = finishedRun([done('teeth', 3), done('walk', 23), done('change', 28), done('pack', 33)], 33.3);
+    expect(timeline(quick).finishingUp).toBeUndefined();
+  });
+
   it('shows a time fixed afterwards, and what the taps made it', () => {
     const run = { ...finishedRun([done('teeth', 9), done('walk', 29)], 30), corrected: { teeth: 180 } };
     const rows = timeline(run).rows.filter((r) => r.status === 'done');
