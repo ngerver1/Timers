@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { finishFrom, latestStart } from '../../engine/plan';
 import { activeTasks, closeOver } from '../../engine/routine';
 import { foldRun, lastUndoable, plannedFinish, projectState, type DoneTask, type Projection } from '../../engine/run';
 import { simulate, type Slot } from '../../engine/simulate';
 import { suggestDrops, type DropSuggestion } from '../../engine/suggest';
 import { atTime, ceilMinute, dateKey, upcomingTime } from '../../engine/time';
-import type { Ending, Flow, Id, Run, Task } from '../../engine/types';
+import type { Ending, Flow, Run, Task } from '../../engine/types';
 import {
   activeFlow,
   activeRun,
@@ -15,6 +15,7 @@ import {
   finishRun,
   finishedRuns,
   planFor,
+  savePlan,
   saveTaskDef,
   selectFlow,
   skipTasks,
@@ -24,6 +25,7 @@ import {
   undoLast,
 } from '../../store/actions';
 import { flowsUsing, offeredFinishBy } from '../../store/flows';
+import type { Plan } from '../../store/schema';
 import { useData } from '../../store/store';
 import { forSchedule } from '../../features';
 import {
@@ -48,6 +50,7 @@ import {
   minutesText,
   nudgedSeconds,
   parseMinutes,
+  slack,
   taskLength,
   taskProgress,
   timer,
@@ -74,29 +77,31 @@ export function TodayScreen() {
 
 // ---- Before Start ----
 
-/** Your choices for each flow survive a trip to another tab, until that day's plan changes. */
-const drafts = new Map<Id, { date: string; plan: string; on: Id[]; finishBy: string }>();
-
+/**
+ * Today's plan for the picked flow, and Start. The plan is just what's coming up;
+ * optional tasks and the leave-by time are changed under Edit plan, and saved as
+ * today's plan (the same one the Plan tab shows for today).
+ */
 function StartView({ flow, now }: { flow: Flow; now: number }) {
   const data = useData();
   const flowTasks = tasksOf(data, flow);
   const w = words(flow.ending);
   const today = dateKey(now);
-  const plan = planFor(data, today, flow.id);
-  const planKey = JSON.stringify(plan ?? null);
-  const [initial] = useState(() => {
-    const draft = drafts.get(flow.id);
-    if (draft?.date === today && draft.plan === planKey) return draft;
-    const on = closeOver(flowTasks, plan?.optionalOn ?? []);
-    return { on: [...on], finishBy: offeredFinishBy(flowTasks, on, plan ?? flow.usual, today) };
-  });
-  const [on, setOn] = useState(() => closeOver(flowTasks, initial.on));
-  const [finishBy, setFinishBy] = useState(initial.finishBy);
-  useEffect(() => {
-    drafts.set(flow.id, { date: today, plan: planKey, on: [...on], finishBy });
-  }, [flow.id, today, planKey, on, finishBy]);
+  const saved = planFor(data, today, flow.id);
+  const plan: Plan = saved ?? {
+    date: today,
+    flowId: flow.id,
+    optionalOn: [],
+    mode: flow.usual?.mode ?? 'doneBy',
+    time: flow.usual?.time,
+    bufferMin: data.settings.bufferMin,
+  };
+  const [editing, setEditing] = useState(false);
 
-  const selected = closeOver(flowTasks, on); // tasks may have been edited since
+  const selected = closeOver(flowTasks, plan.optionalOn); // tasks may have been edited since
+  const finishBy = offeredFinishBy(flowTasks, selected, saved ?? flow.usual, today);
+  const edit = (change: Partial<Plan>) =>
+    savePlan({ ...plan, optionalOn: [...selected], ...change, date: today, flowId: flow.id });
   // The same schedule a run would follow, from now.
   const schedule = simulate({ tasks: forSchedule(activeTasks(flowTasks, selected)), from: now });
   const outAt = schedule.finish;
@@ -105,16 +110,11 @@ function StartView({ flow, now }: { flow: Flow; now: number }) {
   const earlier = finishedRuns(data).find((r) => r.date === today && r.flowId === flow.id);
   const several = data.flows.length > 1;
 
-  const start = () => {
-    drafts.delete(flow.id);
-    startRun(selected, finishBy || undefined);
-  };
-
   return (
     <div className="stack">
       <header className="page-head">
         <h1>{dayLabel(today)}</h1>
-        {plan && <span className="chip">From your plan</span>}
+        {saved && <span className="chip">From your plan</span>}
       </header>
       {several && <FlowPicker flows={data.flows} value={flow.id} onChange={selectFlow} />}
       {earlier?.finishedAt !== undefined && (
@@ -126,40 +126,67 @@ function StartView({ flow, now }: { flow: Flow; now: number }) {
       {flowTasks.length === 0 ? (
         <p className="card pad note">{flow.name} has no tasks yet. Add some on the Flows tab.</p>
       ) : (
-        <section>
-          <h2 className="section-title">Optional today</h2>
-          <OptionalPicker tasks={flowTasks} on={selected} onChange={setOn} />
-        </section>
+        <>
+          <section className="card pad summary">
+            <div className="summary-line">
+              <span>Takes</span>
+              <strong>{duration(length / 1000)}</strong>
+            </div>
+            <div className="summary-line">
+              <span>Start now, {w.finishedAt}</span>
+              <strong>{clock(ceilMinute(outAt))}</strong>
+            </div>
+            {finishAt !== undefined && (
+              <div className="summary-line">
+                <span>
+                  {w.by} {clock(finishAt)}
+                </span>
+                <SlackPill finishBy={finishAt} outAt={outAt} />
+              </div>
+            )}
+          </section>
+          <ComingUp slots={schedule.slots} finish={outAt} ending={flow.ending} />
+        </>
       )}
-      <section className="card pad">
-        <TimeField label={w.by} value={finishBy} onChange={setFinishBy} />
-      </section>
-      <section className="card pad summary">
-        <div className="summary-line">
-          <span>Takes</span>
-          <strong>{duration(length / 1000)}</strong>
-        </div>
-        <div className="summary-line">
-          <span>Start now, {w.finishedAt}</span>
-          <strong>{clock(ceilMinute(outAt))}</strong>
-        </div>
-        {finishAt !== undefined && (
-          <div className="summary-line">
-            <span>
-              {w.by} {clock(finishAt)}
-            </span>
-            <SlackPill finishBy={finishAt} outAt={outAt} />
-          </div>
-        )}
-      </section>
-      {schedule.slots.length > 0 && <ComingUp slots={schedule.slots} finish={outAt} ending={flow.ending} />}
       <AlsoToday flow={flow} today={today} now={now} />
-      {/* Pinned above the tab bar, so it's always in reach however long the list. */}
+      {/* Pinned above the tab bar, so they're always in reach however long the list. */}
       <div className="start-bar">
-        <button type="button" className="btn btn-primary btn-huge" onClick={start} disabled={flowTasks.length === 0}>
+        <button type="button" className="btn btn-edit-plan" onClick={() => setEditing(true)}>
+          <Icon name="edit" size={20} /> Edit plan
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary btn-start"
+          onClick={() => startRun(selected, finishBy || undefined)}
+          disabled={flowTasks.length === 0}
+        >
           {several ? `Start ${flow.name}` : 'Start'}
         </button>
       </div>
+      {editing && (
+        <Sheet title={`Today's plan · ${flow.name}`} onClose={() => setEditing(false)}>
+          <div className="stack">
+            <section>
+              <h3 className="section-title">Optional today</h3>
+              <OptionalPicker tasks={flowTasks} on={selected} onChange={(next) => edit({ optionalOn: [...next] })} />
+            </section>
+            <section className="card pad">
+              <TimeField
+                label={w.by}
+                value={finishBy}
+                onChange={(v) => edit({ mode: 'doneBy', time: v || undefined })}
+              />
+            </section>
+            <p className="muted plan-edit-summary">
+              Takes {duration(length / 1000)}. Start now and you're {w.finishedAt} {clock(ceilMinute(outAt))}
+              {finishAt !== undefined && ` (${slack(finishAt, outAt).text.toLowerCase()})`}.
+            </p>
+            <button type="button" className="btn btn-primary" onClick={() => setEditing(false)}>
+              Done
+            </button>
+          </div>
+        </Sheet>
+      )}
     </div>
   );
 }
@@ -192,11 +219,12 @@ function ComingUp({ slots, finish, ending }: { slots: Slot[]; finish: number; en
   );
 }
 
-/** Other flows you've planned for today, still to come. Tap one to switch to it. */
+/** Other flows you've planned for today, still to come and not done yet. Tap one to switch to it. */
 function AlsoToday({ flow, today, now }: { flow: Flow; today: string; now: number }) {
   const data = useData();
+  const doneToday = new Set(finishedRuns(data).flatMap((r) => (r.date === today ? [r.flowId] : [])));
   const items = data.flows
-    .filter((f) => f.id !== flow.id)
+    .filter((f) => f.id !== flow.id && !doneToday.has(f.id))
     .flatMap((f) => {
       const plan = planFor(data, today, f.id);
       if (!plan?.time) return [];

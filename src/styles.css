@@ -1790,9 +1790,29 @@ p {
   position: sticky;
   bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px);
   z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 10px;
 }
 
 .start-bar .btn {
-  min-height: 68px;
+  min-height: 64px;
+  border-radius: 20px;
   box-shadow: 0 6px 20px rgb(0 0 0 / 0.18);
+}
+
+.btn-edit-plan {
+  gap: 6px;
+  font-size: 17px;
+}
+
+.btn-start {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: normal;
+}
+
+.plan-edit-summary {
+  margin: 0 4px;
 }

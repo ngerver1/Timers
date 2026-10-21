@@ -17,11 +17,13 @@ uses it. A flow ends one of two ways, which only changes the wording:
 
 ## Using it
 
-- **Today**: pick a flow, switch on today's optional tasks, set an optional leave-by (or done-by) time and tap
-  **Start** (it stays pinned above the tab bar). Before you start, **Coming up** lists what you'll do if you start
-  now: each task in order with its start time and length, ending with when you'll be out the door. It's the same
-  schedule the run follows, so it updates as you switch tasks on and off. Other flows you've planned for today are
-  listed under **Also planned today**; tap one to switch to it. While it runs:
+- **Today** shows today's plan for the picked flow: how long it takes, when you'll be out the door if you start
+  now (against your leave-by time), and **Coming up**, each task in order with its start time and length. It's the
+  same schedule the run follows. Other flows planned for today and not done yet are listed under **Also planned
+  today**; tap one to switch to it. Two buttons stay pinned above the tab bar: **Edit plan** switches today's
+  optional tasks on or off and sets the leave-by (or done-by) time, saved as today's plan (the same one the Plan tab
+  shows for today), and **Start** starts it.
+- **While a flow runs**:
   - the finish time; tap it to switch between the time, a countdown, and both;
   - how far the estimate has moved since Start (+/− vs plan) and, with a leave-by time, how much spare you have;
   - the current task with a countdown ring, **Done**, Skip, Edit and Undo, and −5/−1/+1/+5 buttons to change its
@@ -37,7 +39,7 @@ uses it. A flow ends one of two ways, which only changes the wording:
 
 - **Plan**: like Google Maps' "Arrive by" and "Depart at". Pick a flow and a day, its optional tasks, and either the
   time to be done by (it works back to when to start, and when to get up) or the time to start (it works out when
-  you'll be done). That day's Start screen is filled in from the plan, and each flow remembers its usual choice.
+  you'll be done). That day's Today screen follows the plan, and each flow remembers its usual choice.
 - **Flows**: switch between flows or make a new one (empty, or with the same tasks as another). Drag to reorder (the
   order is the priority); tap a task (the pencil) to change its name, minutes, whether it's optional in this flow,
   and its "after" rules. **Add from other flows** reuses tasks you already have; Settings renames, changes how a
