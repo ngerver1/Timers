@@ -2,7 +2,7 @@
 // task was done, against what it was planned to take.
 import { allDoneAt, foldRun } from './run';
 import { MINUTE } from './time';
-import type { Run, Task } from './types';
+import type { Id, Run, Task } from './types';
 
 export interface TimelineRow {
   task: Task;
@@ -16,6 +16,8 @@ export interface TimelineRow {
   oneOff: boolean;
   /** How long the taps made it (ms), when its time was fixed afterwards. */
   tappedMs?: number;
+  /** Tapped Done together with the rows next to it that have the same id: their time is split by plan. */
+  batch?: Id;
 }
 
 export interface Timeline {
@@ -44,7 +46,13 @@ export function timeline(run: Run): Timeline {
     .sort((a, b) => a.start - b.start)
     .map((d) => {
       const t = run.corrected?.[d.task.id] !== undefined ? tapped?.get(d.task.id) : undefined;
-      return { ...row(d.task, 'done'), start: d.start, end: d.handsOnEnd, tappedMs: t && t.handsOnEnd - t.start };
+      return {
+        ...row(d.task, 'done'),
+        start: d.start,
+        end: d.handsOnEnd,
+        tappedMs: t && t.handsOnEnd - t.start,
+        batch: d.batch,
+      };
     });
   const left = state.tasks.filter((t) => !state.done.has(t.id));
   const from = run.startedAt;

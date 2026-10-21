@@ -1576,6 +1576,28 @@ p {
   font-variant-numeric: tabular-nums;
 }
 
+/* Tasks tapped Done together: a bracket in the margin, so their bars keep their place on the axis. */
+.gantt-group {
+  position: relative;
+}
+
+.gantt-group::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: -10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--muted);
+}
+
+.gantt-group-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 /* Finishing up: time after the last task that wasn't any task's, so hatched rather than solid. */
 .gantt-misc .gantt-name {
   font-weight: 500;

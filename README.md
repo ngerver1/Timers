@@ -70,9 +70,13 @@ uses it. A flow is one of two kinds:
     clock axis, the bar from when you started it to when you finished, amber for time beyond its plan, a tick where
     it was planned to end, and a line at your finish-by time. When everything got done, a hatched **Finishing up**
     bar shows the time from your last task to Finish;
-  - tap a task in a timeline to correct how long it took (you forgot to tap Done, or a phone call got counted). Its
-    usual time and the insights use the corrected time; other tasks, and the run's own start, finish and total,
-    stay as you tapped them. The row is marked "edited", and **Reset** goes back to what the taps said;
+  - tasks you tapped Done together (within 30 seconds) are bracketed as **Done together**, with the time they
+    shared, split between them by their planned minutes;
+  - tap a task in a timeline to correct how long it took (you forgot to tap Done, or a phone call got counted). Each
+    task starts where the one before it ended, so everything after it moves up or back by the difference, each
+    keeping its own time. The run's own start, finish and total stay as you tapped them, and the time freed up (or
+    used) shows in Finishing up. Its usual time and the insights use the corrected time. The row is marked
+    "edited", and **Reset** goes back to what the taps said;
   - **Task times**, folded away: each task's usual time in this flow (median of the flow's last 10 runs that
     included it) with one tap to adopt it, and how long finishing up usually takes. The Setup tab shows the same
     per-flow usual times. A task's minutes are shared by every flow that uses it, so adopting one changes it in those

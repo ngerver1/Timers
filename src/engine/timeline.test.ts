@@ -21,13 +21,23 @@ describe('timeline', () => {
     expect(timeline(quick).finishingUp).toBeUndefined();
   });
 
-  it('shows a time fixed afterwards, and what the taps made it', () => {
-    const run = { ...finishedRun([done('teeth', 9), done('walk', 29)], 30), corrected: { teeth: 180 } };
-    const rows = timeline(run).rows.filter((r) => r.status === 'done');
-    expect(rows.map((r) => [r.task.id, mins(r.start!), mins(r.end!), r.tappedMs && r.tappedMs / MIN])).toEqual([
+  it('shows a time fixed afterwards, what the taps made it, and the rest moved up after it', () => {
+    const events = [done('teeth', 9), done('walk', 29), done('change', 34), done('pack', 39)];
+    const t = timeline({ ...finishedRun(events, 40), corrected: { teeth: 180 } });
+    expect(t.rows.map((r) => [r.task.id, mins(r.start!), mins(r.end!), r.tappedMs && r.tappedMs / MIN])).toEqual([
       ['teeth', 0, 3, 9],
-      ['walk', 9, 29, undefined],
+      ['walk', 3, 23, undefined],
+      ['change', 23, 28, undefined],
+      ['pack', 28, 33, undefined],
     ]);
+    // The run still finished when you tapped Finish; the time freed up is finishing up.
+    expect(t.finishingUp).toEqual({ start: at(33), end: at(40) });
+  });
+
+  it('marks rows tapped Done together', () => {
+    const t = timeline(finishedRun([done('teeth', 4), done('walk', 22), done('change', 22.2), done('pack', 30)], 31));
+    expect(t.rows.map((r) => r.batch !== undefined)).toEqual([false, true, true, false]);
+    expect(t.rows[1]!.batch).toBe(t.rows[2]!.batch);
   });
 
   it('lays out what you did, in order, against the plan, then what was skipped or left', () => {

@@ -19,6 +19,8 @@ export interface DoneTask {
   handsOnEnd: number;
   /** Wait included. */
   finish: number;
+  /** Tapped Done together with others (within 30 s): the same id for each, and their time is split by plan. */
+  batch?: Id;
 }
 
 export interface RunState {
@@ -91,12 +93,7 @@ export function foldRun(run: Run): RunState {
       applyReorder(state, e.taskIds, e.at);
     }
   }
-  // Times fixed afterwards: the task keeps its start and ends when it really did. Other tasks stay as tapped.
-  for (const [id, sec] of Object.entries(run.corrected ?? {})) {
-    const d = state.done.get(id);
-    if (d)
-      state.done.set(id, { ...d, handsOnEnd: d.start + sec * 1000, finish: d.start + (sec + d.task.waitSec) * 1000 });
-  }
+  if (run.corrected) applyCorrections(state, run.corrected);
   return state;
 }
 
@@ -181,6 +178,28 @@ function applyReorder(state: RunState, taskIds: readonly Id[], at: number): void
   if (current) state.pinned = { id: current.task.id, start: current.start };
 }
 
+/**
+ * Times fixed afterwards. Each task still starts where the one before it ended
+ * (or after the same idle gap), so making one shorter or longer moves everything
+ * done after it by the difference. Only the fixed task's own time changes.
+ */
+function applyCorrections(state: RunState, corrected: Readonly<Record<Id, number>>): void {
+  let shift = 0;
+  for (const d of [...state.done.values()].sort((a, b) => a.start - b.start)) {
+    const tookMs = d.handsOnEnd - d.start;
+    const fixedMs = corrected[d.task.id] === undefined ? tookMs : corrected[d.task.id]! * 1000;
+    const start = d.start + shift;
+    state.done.set(d.task.id, {
+      ...d,
+      start,
+      handsOnEnd: start + fixedMs,
+      finish: start + fixedMs + d.task.waitSec * 1000,
+    });
+    shift += fixedMs - tookMs;
+  }
+  state.freeAt += shift;
+}
+
 /** Fixes a task's name or minutes for the rest of this morning. */
 function applyEdit(state: RunState, e: EditEvent): void {
   const change = (t: Task): Task => (t.id === e.taskId ? { ...t, name: e.name, handsOnSec: e.handsOnSec } : t);
@@ -208,6 +227,7 @@ function applyDone(state: RunState, taps: readonly DoneEvent[]): void {
   const start = Math.min(ready <= firstTap ? Math.max(state.freeAt, ready) : state.freeAt, lastTap);
 
   const ordered = orderBatch(items);
+  const batch = ordered.length > 1 ? ordered[0]!.tap.id : undefined;
   const total = lastTap - start;
   const weights = ordered.reduce((sum, i) => sum + i.task.handsOnSec, 0);
   let cursor = start;
@@ -220,6 +240,7 @@ function applyDone(state: RunState, taps: readonly DoneEvent[]): void {
       start: cursor,
       handsOnEnd: end,
       finish: end + item.task.waitSec * 1000,
+      batch,
     });
     cursor = end;
   });

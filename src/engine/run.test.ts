@@ -86,6 +86,14 @@ describe('taps made together', () => {
     );
   });
 
+  it('marks the tasks tapped together, so History can show they were done together', () => {
+    const run = makeRun(basic, [done('coffee', 5), done('teeth', 5.2), done('dogFood', 9)]);
+    const d = foldRun(run).done;
+    expect(d.get('coffee')!.batch).toBeDefined();
+    expect(d.get('teeth')!.batch).toBe(d.get('coffee')!.batch);
+    expect(d.get('dogFood')!.batch).toBeUndefined();
+  });
+
   it('treats taps up to 30 seconds apart as one batch', () => {
     const run = makeRun(basic, [done('coffee', 5), done('teeth', 5 + 10 / 60)]);
     expect(actualSeconds(run)).toEqual(
@@ -120,18 +128,45 @@ describe('taps made together', () => {
 });
 
 describe('times fixed afterwards', () => {
-  it('a task keeps its start and ends when it really did; the others stay as tapped', () => {
-    // Coffee was done by 5 but Done was tapped at 12.
+  it('moves everything done after a fixed task by the difference, each keeping its own time', () => {
+    // Coffee was done by 5 but Done was tapped at 12: 7 minutes too long.
     const run = {
       ...makeRun(basic, [done('teeth', 3), done('coffee', 12), done('dogFood', 15), done('walk', 35)]),
       corrected: { coffee: 120 },
     };
-    const d = foldRun(run).done;
-    expect([mins(d.get('coffee')!.start), mins(d.get('coffee')!.handsOnEnd), mins(d.get('coffee')!.finish)]).toEqual([
-      3, 5, 9,
+    const state = foldRun(run);
+    const at = (id: string) => [mins(state.done.get(id)!.start), mins(state.done.get(id)!.handsOnEnd)];
+    expect(['teeth', 'coffee', 'dogFood', 'walk'].map(at)).toEqual([
+      [0, 3],
+      [3, 5],
+      [5, 8],
+      [8, 28],
     ]);
-    expect([mins(d.get('dogFood')!.start), mins(d.get('dogFood')!.handsOnEnd)]).toEqual([12, 15]);
-    expect(actualSeconds(run).get('coffee')).toBe(120);
+    expect(mins(state.done.get('coffee')!.finish)).toBe(9); // its wait moves with it
+    expect(mins(state.freeAt)).toBe(28);
+    expect(actualSeconds(run)).toEqual(
+      new Map([
+        ['teeth', 180],
+        ['coffee', 120],
+        ['dogFood', 180],
+        ['walk', 1200],
+      ]),
+    );
+  });
+
+  it('keeps idle time between tasks where it was', () => {
+    // Nothing was ready from 2 to 6 while the iron heated.
+    const tasks = [task('ironOn', 1, { wait: 5 }), task('iron', 2, { after: ['ironOn'] }), task('pack', 2)];
+    const run = {
+      ...makeRun(tasks, [done('ironOn', 2), done('iron', 9), done('pack', 11)]),
+      corrected: { ironOn: 60 },
+    };
+    const d = foldRun(run).done;
+    expect([d.get('ironOn')!, d.get('iron')!, d.get('pack')!].map((x) => [mins(x.start), mins(x.handsOnEnd)])).toEqual([
+      [0, 1],
+      [6, 8],
+      [8, 10],
+    ]);
   });
 });
 

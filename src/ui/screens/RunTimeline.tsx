@@ -35,6 +35,13 @@ export function RunTimeline({ run }: { run: Run }) {
       {open === r.task.id && <TookEditor run={run} row={r} onDone={() => setOpen(null)} />}
     </Row>
   );
+  // Tasks tapped Done together sit next to each other; they're shown as one group.
+  const groups: TimelineRow[][] = [];
+  for (const r of t.rows.filter((r) => r.status === 'done')) {
+    const last = groups.at(-1);
+    if (r.batch !== undefined && last?.[0]?.batch === r.batch) last.push(r);
+    else groups.push([r]);
+  }
   return (
     <div className="gantt">
       <div className="gantt-axis" aria-hidden="true">
@@ -52,7 +59,21 @@ export function RunTimeline({ run }: { run: Run }) {
           <i className="gantt-line gantt-deadline" style={{ left: `${pct(t.finishBy)}%` }} aria-hidden="true" />
         )}
         <ol className="gantt-rows" aria-label="What you did, in order">
-          {t.rows.filter((r) => r.status === 'done').map(row)}
+          {groups.map((g) =>
+            g.length === 1 ? (
+              row(g[0]!)
+            ) : (
+              <li key={g[0]!.task.id} className="gantt-group">
+                <ol className="gantt-rows" aria-label="Done together">
+                  {g.map(row)}
+                </ol>
+                <p className="gantt-group-note">
+                  Done together · {duration(halfMinutes(g.reduce((sum, r) => sum + r.end! - r.start!, 0)))}, split by
+                  plan
+                </p>
+              </li>
+            ),
+          )}
           {t.finishingUp && <FinishingUpRow span={t.finishingUp} pct={pct} />}
           {t.rows.filter((r) => r.status !== 'done').map(row)}
         </ol>
