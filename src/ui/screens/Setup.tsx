@@ -98,16 +98,11 @@ export function SetupScreen() {
         </button>
       </section>
 
-      <p className="muted">
-        The order is your priority: whenever you're free, the first task that's ready comes next. Drag the handle to
-        reorder; tap a task to change it.
-      </p>
+      <p className="muted">Drag to reorder. Tasks higher up go first. Tap a task to edit it.</p>
       {running?.flowId === flow.id && <p className="card pad note">Changes apply from your next start.</p>}
 
       {tasks.length === 0 ? (
-        <p className="card pad muted">
-          No tasks in {flow.name} yet. Add some from your other flows, or make a new one.
-        </p>
+        <p className="card pad muted">No tasks in {flow.name} yet. Add an existing task, or make a new one.</p>
       ) : (
         <DndContext
           sensors={sensors}
@@ -129,9 +124,12 @@ export function SetupScreen() {
         <button type="button" className="btn" onClick={() => setEditing('new')}>
           <Icon name="plus" size={20} /> New task
         </button>
-        <button type="button" className="btn" onClick={() => setSheet('add')}>
-          Add from other flows
-        </button>
+        {/* Tasks you've made that this flow doesn't have yet, from another flow or ones you took out. */}
+        {data.tasks.some((t) => !flow.items.some((i) => i.taskId === t.id)) && (
+          <button type="button" className="btn" onClick={() => setSheet('add')}>
+            <Icon name="plus" size={20} /> Existing task
+          </button>
+        )}
       </div>
 
       {editing && (

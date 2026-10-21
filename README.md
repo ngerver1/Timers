@@ -44,7 +44,7 @@ uses it. A flow is one of two kinds:
   you'll be done). That day's Flow tab follows the plan, and each flow remembers its usual choice.
 - **Setup**: switch between flows or make a new one (empty, or with the same tasks as another). Drag to reorder (the
   order is the priority); tap a task (the pencil) to change its name, minutes, whether it's optional in this flow,
-  and its "after" rules. **Add from other flows** reuses tasks you already have; Settings renames, changes how a
+  and its "after" rules. **Existing task** reuses a task you already have (from another flow, or one you took out); Settings renames, changes how a
   flow ends, or deletes it.
 - **History** is split by flow. It opens on a card per flow (deleted flows that still have runs too): how long it
   typically takes, how the last run went, and a sparkline of recent run times. Tap one for that flow's own page,

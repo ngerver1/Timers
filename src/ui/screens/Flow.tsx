@@ -245,13 +245,16 @@ function EditPlanSheet(props: {
               : `Added to ${flow.name} for good, the same as on the Setup tab, so it's timed every run.`}
           </p>
           <div className="action-row">
-            <button
-              type="button"
-              className={`btn${adding === 'list' ? ' on' : ''}`}
-              onClick={() => setAdding(adding === 'list' ? null : 'list')}
-            >
-              <Icon name="plus" size={20} /> Your tasks
-            </button>
+            {/* Tasks you've made that this flow doesn't have yet, from another flow or ones you took out. */}
+            {available.length > 0 && (
+              <button
+                type="button"
+                className={`btn${adding === 'list' ? ' on' : ''}`}
+                onClick={() => setAdding(adding === 'list' ? null : 'list')}
+              >
+                <Icon name="plus" size={20} /> Existing task
+              </button>
+            )}
             <button
               type="button"
               className={`btn${adding === 'new' ? ' on' : ''}`}
@@ -260,12 +263,11 @@ function EditPlanSheet(props: {
               <Icon name="plus" size={20} /> New task
             </button>
           </div>
-          {adding === 'list' &&
-            (available.length === 0 ? (
-              <p className="muted">Every task you have is already in today's plan. Make a new one instead.</p>
-            ) : (
-              <ul className="card list">
-                {available.map((t) => (
+          {adding === 'list' && available.length > 0 && (
+            <ul className="card list">
+              {available.map((t) => {
+                const usedIn = flowsUsing(data.flows, t.id).map((f) => f.name);
+                return (
                   <li key={t.id}>
                     <button
                       type="button"
@@ -275,16 +277,19 @@ function EditPlanSheet(props: {
                     >
                       <span className="row-main">
                         <span className="row-title">{t.name}</span>
-                        <span className="row-meta">{duration(t.handsOnSec)}</span>
+                        <span className="row-meta">
+                          {duration(t.handsOnSec)} · {usedIn.length ? `in ${listNames(usedIn)}` : 'not in any flow'}
+                        </span>
                       </span>
                       <span className="add-plus">
                         <Icon name="plus" size={20} />
                       </span>
                     </button>
                   </li>
-                ))}
-              </ul>
-            ))}
+                );
+              })}
+            </ul>
+          )}
           {adding === 'new' && (
             <form
               className="card pad stack-tight"
