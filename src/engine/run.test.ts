@@ -119,6 +119,22 @@ describe('taps made together', () => {
   });
 });
 
+describe('times fixed afterwards', () => {
+  it('a task keeps its start and ends when it really did; the others stay as tapped', () => {
+    // Coffee was done by 5 but Done was tapped at 12.
+    const run = {
+      ...makeRun(basic, [done('teeth', 3), done('coffee', 12), done('dogFood', 15), done('walk', 35)]),
+      corrected: { coffee: 120 },
+    };
+    const d = foldRun(run).done;
+    expect([mins(d.get('coffee')!.start), mins(d.get('coffee')!.handsOnEnd), mins(d.get('coffee')!.finish)]).toEqual([
+      3, 5, 9,
+    ]);
+    expect([mins(d.get('dogFood')!.start), mins(d.get('dogFood')!.handsOnEnd)]).toEqual([12, 15]);
+    expect(actualSeconds(run).get('coffee')).toBe(120);
+  });
+});
+
 describe('skip, one-offs and undo', () => {
   it('skipping the task you are on starts the next one now', () => {
     const run = makeRun(basic, [skip(['teeth'], 1)]);

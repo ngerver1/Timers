@@ -63,9 +63,13 @@ uses it. A flow is one of two kinds:
     task that runs over most, with one tap to use its usual time, and any run way off its plan (under a third or
     over three times the planned time, like a test run), with one tap to delete it;
   - past runs with their total time (the newest 5, the rest a tap away). Delete a run from the chart (pick its
-    column, then **Delete**) or from the top of an opened run; a day with several runs can go in one tap. Tap one (or **Timeline** under the chart) for a Gantt-style timeline of
-    what actually happened: a row per task on a clock axis, the bar from when you started it to when you finished,
-    amber for time beyond its plan, a tick where it was planned to end, and a line at your finish-by time;
+    column, then **Delete**) or from the top of an opened run; a day with several runs can go in one tap. Tap one
+    (or **Timeline** under the chart) for a Gantt-style timeline of what actually happened: a row per task on a
+    clock axis, the bar from when you started it to when you finished, amber for time beyond its plan, a tick where
+    it was planned to end, and a line at your finish-by time;
+  - tap a task in a timeline to correct how long it took (you forgot to tap Done, or a phone call got counted). Its
+    usual time and the insights use the corrected time; other tasks, and the run's own start, finish and total,
+    stay as you tapped them. The row is marked "edited", and **Reset** goes back to what the taps said;
   - **Task times**, folded away: each task's usual time in this flow (median of the flow's last 10 runs that
     included it) with one tap to adopt it. The Setup tab shows the same per-flow usual times. A task's minutes are
     shared by every flow that uses it, so adopting one changes it in those flows too.

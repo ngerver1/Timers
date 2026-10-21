@@ -91,6 +91,12 @@ export function foldRun(run: Run): RunState {
       applyReorder(state, e.taskIds, e.at);
     }
   }
+  // Times fixed afterwards: the task keeps its start and ends when it really did. Other tasks stay as tapped.
+  for (const [id, sec] of Object.entries(run.corrected ?? {})) {
+    const d = state.done.get(id);
+    if (d)
+      state.done.set(id, { ...d, handsOnEnd: d.start + sec * 1000, finish: d.start + (sec + d.task.waitSec) * 1000 });
+  }
   return state;
 }
 

@@ -237,6 +237,20 @@ export function undoLast(now = Date.now()) {
   });
 }
 
+/** Fixes how long a task in a past run took; with no time, goes back to what the taps said. */
+export function correctTaskTime(runId: Id, taskId: Id, sec?: number) {
+  update((d) => ({
+    ...d,
+    runs: d.runs.map((r) => {
+      if (r.id !== runId) return r;
+      const corrected = { ...r.corrected };
+      if (sec === undefined) delete corrected[taskId];
+      else corrected[taskId] = sec;
+      return { ...r, corrected: Object.keys(corrected).length > 0 ? corrected : undefined };
+    }),
+  }));
+}
+
 /** Back on Start, show the flow that just ran, even if you looked at another one meanwhile. */
 function pickRunFlow(d: StoreData): Id {
   const flowId = activeRun(d)?.flowId;

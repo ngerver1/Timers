@@ -50,6 +50,7 @@ describe('store schema', () => {
         60,
       ),
       finishedAt: 1,
+      corrected: { teeth: 150 },
     });
     data.flows[0]!.usual = { mode: 'startAt', time: '06:30' };
     expect(fromBackup(toBackup(data))).toEqual(data);

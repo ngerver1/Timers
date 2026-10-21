@@ -14,6 +14,8 @@ export interface TimelineRow {
   plannedMs: number;
   /** Added during the run. */
   oneOff: boolean;
+  /** How long the taps made it (ms), when its time was fixed afterwards. */
+  tappedMs?: number;
 }
 
 export interface Timeline {
@@ -28,6 +30,7 @@ export interface Timeline {
 
 export function timeline(run: Run): Timeline {
   const state = foldRun(run);
+  const tapped = run.corrected ? foldRun({ ...run, corrected: undefined }).done : undefined;
   const planned = new Set(run.tasks.map((t) => t.id));
   const row = (task: Task, status: TimelineRow['status']): TimelineRow => ({
     task,
@@ -37,7 +40,10 @@ export function timeline(run: Run): Timeline {
   });
   const done = [...state.done.values()]
     .sort((a, b) => a.start - b.start)
-    .map((d) => ({ ...row(d.task, 'done'), start: d.start, end: d.handsOnEnd }));
+    .map((d) => {
+      const t = run.corrected?.[d.task.id] !== undefined ? tapped?.get(d.task.id) : undefined;
+      return { ...row(d.task, 'done'), start: d.start, end: d.handsOnEnd, tappedMs: t && t.handsOnEnd - t.start };
+    });
   const left = state.tasks.filter((t) => !state.done.has(t.id));
   const from = run.startedAt;
   // Wide enough for every bar, every planned end, and the finish.

@@ -191,7 +191,14 @@ function run(v: unknown): Run {
     startedAt: num(v.startedAt, 'start time'),
     finishedAt: optNum(v.finishedAt, 'finish time'),
     events: arr(v.events, 'run events', event),
+    corrected: v.corrected === undefined ? undefined : seconds(v.corrected, 'fixed times'),
   };
+}
+
+/** Task id to seconds. */
+function seconds(v: unknown, what: string): Record<Id, number> {
+  if (!isObj(v)) return fail(what);
+  return Object.fromEntries(Object.entries(v).map(([id, sec]) => [id, Math.max(0, num(sec, what))]));
 }
 
 function extra(v: unknown): PlanExtra {

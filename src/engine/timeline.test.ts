@@ -12,6 +12,15 @@ const finishedRun = (events: Parameters<typeof makeRun>[1], finishedMin: number,
 });
 
 describe('timeline', () => {
+  it('shows a time fixed afterwards, and what the taps made it', () => {
+    const run = { ...finishedRun([done('teeth', 9), done('walk', 29)], 30), corrected: { teeth: 180 } };
+    const rows = timeline(run).rows.filter((r) => r.status === 'done');
+    expect(rows.map((r) => [r.task.id, mins(r.start!), mins(r.end!), r.tappedMs && r.tappedMs / MIN])).toEqual([
+      ['teeth', 0, 3, 9],
+      ['walk', 9, 29, undefined],
+    ]);
+  });
+
   it('lays out what you did, in order, against the plan, then what was skipped or left', () => {
     const run = finishedRun(
       [done('teeth', 4), editTask('walk', 'Take dog for walk', 15, 5), done('walk', 22), skip(['pack'], 22)],

@@ -4,6 +4,7 @@ import { addDays, atTime, dateKey } from '../engine/time';
 import {
   activeRun,
   addToFlow,
+  correctTaskTime,
   createFlow,
   deleteFlow,
   deleteRuns,
@@ -223,6 +224,19 @@ describe('starting a run', () => {
     expect(morning().usual).toEqual({ mode: 'startAt', time: '06:15' });
     startRun([], '07:10', T0 + 120 * MIN);
     expect(morning().usual).toEqual({ mode: 'startAt', time: '06:15' });
+  });
+});
+
+describe('correcting a past run', () => {
+  it('fixes how long a task took, and goes back to what the taps said', () => {
+    startRun([], undefined, T0);
+    finishRun(T0 + 30 * MIN);
+    const run = () => getData().runs[0]!;
+    const teeth = run().tasks[0]!.id;
+    correctTaskTime(run().id, teeth, 90);
+    expect(run().corrected).toEqual({ [teeth]: 90 });
+    correctTaskTime(run().id, teeth);
+    expect(run().corrected).toBeUndefined();
   });
 });
 

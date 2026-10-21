@@ -73,4 +73,6 @@ export interface Run {
   /** Set when you tap Finish. */
   finishedAt?: number;
   events: RunEvent[];
+  /** How long tasks really took (hands-on seconds), fixed in History afterwards. */
+  corrected?: Record<Id, number>;
 }

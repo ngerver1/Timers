@@ -1582,9 +1582,42 @@ p {
 }
 
 .gantt-track {
+  display: block;
   position: relative;
   height: 14px;
   margin-top: 4px;
+}
+
+/* A done task's row is a button: tap it to correct how long it took. */
+.gantt-hit {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gantt-row.open .gantt-name {
+  color: var(--accent);
+}
+
+.gantt-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.gantt-edit .field {
+  flex: 1 1 8em;
 }
 
 .gantt-bar,
