@@ -248,6 +248,8 @@ export function discardRun() {
   }));
 }
 
-export function deleteRun(id: Id) {
-  update((d) => ({ ...d, runs: d.runs.filter((r) => r.id !== id) }));
+/** Takes runs out of History, and so out of usual times and insights. Never the one in progress. */
+export function deleteRuns(ids: Iterable<Id>) {
+  const gone = new Set(ids);
+  update((d) => ({ ...d, runs: d.runs.filter((r) => !gone.has(r.id) || r.id === d.activeRunId) }));
 }

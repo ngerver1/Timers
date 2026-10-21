@@ -1010,8 +1010,17 @@ p {
   border-bottom: 1px solid var(--line);
 }
 
-.run-card > .btn {
-  margin: 8px;
+.run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 8px;
+  margin: -4px 0 8px;
+}
+
+.readout-actions {
+  display: inline-flex;
+  gap: 4px;
 }
 
 /* ---- Sheets and banners ---- */

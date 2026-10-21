@@ -72,6 +72,14 @@ export function trend(times: readonly RunTime[], maxSize = 5): Trend | undefined
   };
 }
 
+/**
+ * Runs so far off their plan they look like a test or a slip: under a third, or
+ * over three times, the planned time. They skew the stats, so History offers to delete them.
+ */
+export function wayOff(times: readonly RunTime[]): RunTime[] {
+  return times.filter((t) => t.plannedMs > 0 && (t.tookMs < t.plannedMs / 3 || t.tookMs > t.plannedMs * 3));
+}
+
 export interface Overrun {
   task: TaskDef;
   /** Its usual time, tidied the way adopting it would set it. */

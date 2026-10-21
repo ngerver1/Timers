@@ -6,6 +6,7 @@ import {
   addToFlow,
   createFlow,
   deleteFlow,
+  deleteRuns,
   deleteTaskEverywhere,
   discardRun,
   finishRun,
@@ -136,6 +137,20 @@ describe('starting a run', () => {
     expect(morning().usual).toEqual({ mode: 'startAt', time: '06:15' });
     startRun([], '07:10', T0 + 120 * MIN);
     expect(morning().usual).toEqual({ mode: 'startAt', time: '06:15' });
+  });
+});
+
+describe('deleting runs', () => {
+  it('takes finished runs out of History, but never the one in progress', () => {
+    startRun([], undefined, T0);
+    finishRun(T0 + 5 * MIN); // a test run, way off
+    startRun([], undefined, T0 + 60 * MIN);
+    finishRun(T0 + 100 * MIN);
+    startRun([], undefined, T0 + 120 * MIN);
+    const [test, real, running] = getData().runs.map((r) => r.id);
+    deleteRuns([test!, running!]);
+    expect(getData().runs.map((r) => r.id)).toEqual([real, running]);
+    expect(activeRun(getData())?.id).toBe(running);
   });
 });
 

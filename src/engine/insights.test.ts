@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { biggestOverrun, madeIt, minuteScale, runTimes, summarise, trend } from './insights';
+import { biggestOverrun, madeIt, minuteScale, runTimes, summarise, trend, wayOff } from './insights';
 import { at, done, makeRun, MIN, task } from './test-helpers';
 import type { Run } from './types';
 
@@ -63,6 +63,14 @@ describe('trend', () => {
 
   it('waits for at least 3 runs in each group', () => {
     expect(trend(runTimes([30, 31, 29, 30, 32].map((m) => finished(m))))).toBeUndefined();
+  });
+});
+
+describe('way off', () => {
+  it('picks out runs under a third or over three times their plan', () => {
+    // Planned 28 min: a 2-minute test run and a 90-minute slip stand out; a long morning doesn't.
+    const times = runTimes([finished(2), finished(40), finished(90), finished(9.5)]);
+    expect(wayOff(times).map((t) => t.tookMs / MIN)).toEqual([2, 90]);
   });
 });
 

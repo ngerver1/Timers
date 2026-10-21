@@ -5,6 +5,7 @@ import {
   runTimes,
   summarise,
   trend,
+  wayOff,
   type Overrun,
   type RunTime,
   type Summary,
@@ -13,7 +14,7 @@ import {
 import { LEARN_FROM, tidySeconds, usualTimes, type Usual } from '../../engine/learning';
 import { MINUTE } from '../../engine/time';
 import type { Ending, Flow, Id, Run, TaskDef } from '../../engine/types';
-import { deleteRun, finishedRuns, setHandsOn } from '../../store/actions';
+import { deleteRuns, finishedRuns, setHandsOn } from '../../store/actions';
 import { flowsUsing } from '../../store/flows';
 import { useData } from '../../store/store';
 import { Icon, Sheet } from '../components';
@@ -184,7 +185,13 @@ function FlowHistory(props: { flow: Flow; runs: Run[]; onBack?: () => void }) {
         <>
           <StatTiles summary={summary} ending={flow.ending} />
           <RunChart times={times} ending={flow.ending} />
-          <Insights trend={trend(times)} overrun={overrun} sharedWith={sharedWith} runs={times.length} />
+          <Insights
+            trend={trend(times)}
+            overrun={overrun}
+            sharedWith={sharedWith}
+            odd={wayOff(times)}
+            runs={times.length}
+          />
           <PastRuns times={times} />
         </>
       ) : (
@@ -311,9 +318,18 @@ function RunChart({ times, ending }: { times: RunTime[]; ending: Ending }) {
             <span>
               <strong>{minutes(selected.tookMs)}</strong> {dayLabel(selected.run.date)}
             </span>
-            <button type="button" className="btn btn-small" onClick={() => setShowTimeline(true)}>
-              Timeline
-            </button>
+            <span className="readout-actions">
+              <button type="button" className="btn btn-small" onClick={() => setShowTimeline(true)}>
+                Timeline
+              </button>
+              <button
+                type="button"
+                className="btn btn-small btn-quiet danger-text"
+                onClick={() => confirmDelete([selected.run])}
+              >
+                Delete
+              </button>
+            </span>
           </div>
           <div className="muted">
             planned {minutes(selected.plannedMs)} · {w.finishedAt} {clock(out)}
@@ -411,13 +427,40 @@ function RunChart({ times, ending }: { times: RunTime[]; ending: Ending }) {
   );
 }
 
-function Insights(props: { trend?: Trend; overrun?: Overrun; sharedWith: string[]; runs: number }) {
-  const { trend, overrun, runs } = props;
+function Insights(props: { trend?: Trend; overrun?: Overrun; sharedWith: string[]; odd: RunTime[]; runs: number }) {
+  const { trend, overrun, runs, odd } = props;
+  const example = odd[0];
   const change = trend && Math.round((trend.recentMs - trend.earlierMs) / MINUTE);
   return (
     <section>
       <h2 className="section-title">Insights</h2>
       <ul className="card list insights">
+        {example && (
+          <li className="row insight">
+            <p>
+              {odd.length === 1 ? (
+                <>
+                  <strong>{dayLabel(example.run.date)}</strong> took {minutes(example.tookMs)} against{' '}
+                  {minutes(example.plannedMs)} planned.
+                </>
+              ) : (
+                <>
+                  <strong>{odd.length} runs</strong> were way off their plan, like {dayLabel(example.run.date)}:{' '}
+                  {minutes(example.tookMs)} against {minutes(example.plannedMs)}.
+                </>
+              )}{' '}
+              If {odd.length === 1 ? 'it was a test, delete it' : 'they were tests, delete them'} so{' '}
+              {odd.length === 1 ? "it doesn't" : "they don't"} skew your times.
+            </p>
+            <button
+              type="button"
+              className="btn btn-small danger-text"
+              onClick={() => confirmDelete(odd.map((t) => t.run))}
+            >
+              {odd.length === 1 ? 'Delete it' : `Delete all ${odd.length}`}
+            </button>
+          </li>
+        )}
         {trend && change !== undefined && (
           <li className="row insight">
             <p>
@@ -477,7 +520,7 @@ function PastRuns({ times }: { times: RunTime[] }) {
       <ul className="card list">
         {shown.map((t) => (
           <li key={t.run.id}>
-            <RunCard time={t} />
+            <RunCard time={t} sameDay={times.filter((x) => x.run.date === t.run.date).map((x) => x.run)} />
           </li>
         ))}
       </ul>
@@ -490,7 +533,22 @@ function PastRuns({ times }: { times: RunTime[] }) {
   );
 }
 
-function RunCard({ time }: { time: RunTime }) {
+/** Asks first: deleting a run takes it out of the chart, the stats, usual times and insights for good. */
+function confirmDelete(runs: Run[]) {
+  const first = runs[0];
+  if (!first) return;
+  const what =
+    runs.length === 1
+      ? `the ${dayLabel(first.date)} run of ${first.flowName}`
+      : runs.every((r) => r.date === first.date)
+        ? `all ${runs.length} runs of ${first.flowName} on ${dayLabel(first.date)}`
+        : `these ${runs.length} runs of ${first.flowName}`;
+  if (confirm(`Delete ${what}? It won't count towards your times and insights any more. This can't be undone.`)) {
+    deleteRuns(runs.map((r) => r.id));
+  }
+}
+
+function RunCard({ time, sameDay }: { time: RunTime; sameDay: Run[] }) {
   const { run } = time;
   const out = run.finishedAt ?? run.startedAt;
   const w = words(run.ending);
@@ -515,16 +573,23 @@ function RunCard({ time }: { time: RunTime }) {
       </summary>
       {open && (
         <div className="run-detail">
+          <div className="run-actions">
+            <button type="button" className="btn btn-small btn-quiet danger-text" onClick={() => confirmDelete([run])}>
+              Delete this run
+            </button>
+            {sameDay.length > 1 && (
+              <button
+                type="button"
+                className="btn btn-small btn-quiet danger-text"
+                onClick={() => confirmDelete(sameDay)}
+              >
+                Delete all {sameDay.length} from this day
+              </button>
+            )}
+          </div>
           <RunTimeline run={run} />
         </div>
       )}
-      <button
-        type="button"
-        className="btn btn-quiet danger-text"
-        onClick={() => confirm(`Delete this ${run.flowName} run from History?`) && deleteRun(run.id)}
-      >
-        Delete this run
-      </button>
     </details>
   );
 }

@@ -46,9 +46,11 @@ uses it. A flow ends one of two ways, which only changes the wording:
     (or done-by) time, over the last 10 runs;
   - a chart of the last 14 runs' total times, each with a tick at what the plan at Start said; tap a column for its
     details;
-  - insights: whether the flow is getting quicker or taking longer (the last 5 runs against the 5 before), and the
-    task that runs over most, with one tap to use its usual time;
-  - past runs with their total time (the newest 5, the rest a tap away). Tap one (or **Timeline** under the chart) for a Gantt-style timeline of
+  - insights: whether the flow is getting quicker or taking longer (the last 5 runs against the 5 before), the
+    task that runs over most, with one tap to use its usual time, and any run way off its plan (under a third or
+    over three times the planned time, like a test run), with one tap to delete it;
+  - past runs with their total time (the newest 5, the rest a tap away). Delete a run from the chart (pick its
+    column, then **Delete**) or from the top of an opened run; a day with several runs can go in one tap. Tap one (or **Timeline** under the chart) for a Gantt-style timeline of
     what actually happened: a row per task on a clock axis, the bar from when you started it to when you finished,
     amber for time beyond its plan, a tick where it was planned to end, and a line at your leave-by time;
   - **Task times**, folded away: each task's usual time in this flow (median of the flow's last 10 runs that
