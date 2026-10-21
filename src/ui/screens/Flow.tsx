@@ -190,7 +190,7 @@ function EditPlanSheet(props: {
 }) {
   const { flow, plan, tasks, edit } = props;
   const data = useData();
-  // Just today's plan, or the flow itself (the same as adding it on the Setup tab).
+  // A one-off for today's plan, or into the flow for every run (the same as adding it on the Setup tab).
   const [scope, setScope] = useState<'today' | 'flow'>('today');
   const [adding, setAdding] = useState<'list' | 'new' | null>(null);
   const [name, setName] = useState('');
@@ -216,6 +216,19 @@ function EditPlanSheet(props: {
     setMinutes('5');
     setAdding(null);
   };
+  const scopePicker = (
+    <Segmented
+      value={scope}
+      options={[
+        ['today', 'One-off'],
+        ['flow', 'Every run'],
+      ]}
+      onChange={(next) => {
+        setScope(next);
+        setAdded('');
+      }}
+    />
+  );
   return (
     <Sheet title={`Today's plan · ${flow.name}`} onClose={props.onClose}>
       <div className="stack">
@@ -227,23 +240,6 @@ function EditPlanSheet(props: {
         )}
 
         <section className="stack-tight">
-          <h3 className="section-title">Add a task</h3>
-          <Segmented
-            value={scope}
-            options={[
-              ['today', 'Just today'],
-              ['flow', 'Every time'],
-            ]}
-            onChange={(next) => {
-              setScope(next);
-              setAdded('');
-            }}
-          />
-          <p className="hint">
-            {scope === 'today'
-              ? `Just for today, after ${flow.name}'s own tasks. ${flow.name} itself doesn't change.`
-              : `Added to ${flow.name} for good, the same as on the Setup tab, so it's timed every run.`}
-          </p>
           <div className="action-row">
             {/* Tasks you've made that this flow doesn't have yet, from another flow or ones you took out. */}
             {available.length > 0 && (
@@ -263,6 +259,7 @@ function EditPlanSheet(props: {
               <Icon name="plus" size={20} /> New task
             </button>
           </div>
+          {adding === 'list' && available.length > 0 && scopePicker}
           {adding === 'list' && available.length > 0 && (
             <ul className="card list">
               {available.map((t) => {
@@ -311,6 +308,7 @@ function EditPlanSheet(props: {
                 <span>Minutes</span>
                 <input inputMode="decimal" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
               </label>
+              {scopePicker}
               <button type="submit" className="btn" disabled={!name.trim() || value === undefined}>
                 {scope === 'today' ? 'Add to today' : `Add to ${flow.name}`}
               </button>
