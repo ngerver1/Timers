@@ -1,20 +1,3 @@
-import {
-  closestCenter,
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { useMemo, useState } from 'react';
 import { tidySeconds, usualTimes, type Usual } from '../../engine/learning';
 import { createsCycle } from '../../engine/routine';
@@ -41,6 +24,7 @@ import { newId, type StoreData } from '../../store/schema';
 import { useData } from '../../store/store';
 import { FlowPicker, Icon, Segmented, Sheet, Toggle } from '../components';
 import { duration, listNames, minutesText, parseMinutes, taskLength } from '../format';
+import { SortableList, useSortableRow } from '../sortable';
 
 const KINDS: [Ending, string][] = [
   ['leave', 'Morning'],
@@ -59,16 +43,6 @@ export function SetupScreen() {
   const [editing, setEditing] = useState<Task | 'new' | null>(null);
   const [sheet, setSheet] = useState<'add' | 'newFlow' | 'settings' | null>(null);
   const running = activeRun(data);
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-  const ids = tasks.map((t) => t.id);
-  const onDragEnd = ({ active, over }: DragEndEvent) => {
-    if (over && active.id !== over.id) {
-      moveInFlow(flow.id, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)));
-    }
-  };
 
   return (
     <div className="stack">
@@ -104,20 +78,11 @@ export function SetupScreen() {
       {tasks.length === 0 ? (
         <p className="card pad muted">No tasks in {flow.name} yet. Add an existing task, or make a new one.</p>
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          modifiers={[restrictToVerticalAxis, restrictToParentElement]}
-          onDragEnd={onDragEnd}
-        >
-          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-            <ul className="card list">
-              {tasks.map((t) => (
-                <TaskRow key={t.id} task={t} tasks={tasks} usual={usual.get(t.id)} onEdit={() => setEditing(t)} />
-              ))}
-            </ul>
-          </SortableContext>
-        </DndContext>
+        <SortableList ids={tasks.map((t) => t.id)} onMove={(from, to) => moveInFlow(flow.id, from, to)}>
+          {tasks.map((t) => (
+            <TaskRow key={t.id} task={t} tasks={tasks} usual={usual.get(t.id)} onEdit={() => setEditing(t)} />
+          ))}
+        </SortableList>
       )}
 
       <div className="action-row">
@@ -162,26 +127,11 @@ export function SetupScreen() {
 
 function TaskRow(props: { task: Task; tasks: Task[]; usual?: Usual; onEdit: () => void }) {
   const { task, tasks, usual } = props;
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
-    id: task.id,
-  });
+  const { row, dragging, handle } = useSortableRow(task.id, task.name);
   const after = task.after.flatMap((id) => tasks.find((t) => t.id === id)?.name ?? []);
   return (
-    <li
-      ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`task-row${isDragging ? ' dragging' : ''}`}
-    >
-      <button
-        type="button"
-        ref={setActivatorNodeRef}
-        className="handle"
-        aria-label={`Move ${task.name}`}
-        {...attributes}
-        {...listeners}
-      >
-        <Icon name="grip" />
-      </button>
+    <li {...row} className={`task-row${dragging ? ' dragging' : ''}`}>
+      {handle}
       <button type="button" className="task-main" onClick={props.onEdit} aria-label={`Edit ${task.name}`}>
         <span className="task-main-text">
           <span className="row-title">

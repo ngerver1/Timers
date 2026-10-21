@@ -909,7 +909,8 @@ p {
   position: relative;
 }
 
-.task-row.dragging {
+.task-row.dragging,
+.plan-task.dragging {
   z-index: 2;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
 }
@@ -1818,7 +1819,23 @@ p {
   margin: 0 4px;
 }
 
-/* The day's tasks in Edit plan: tap one to change it, switch an optional one on or off. */
+/* The day's tasks in Edit plan: drag to reorder, tap one to change it, switch an optional one on or off. */
+
+.plan-hint {
+  margin: 0 4px 8px;
+}
+
+.plan-task {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  background: var(--surface);
+  position: relative;
+}
+
+.plan-task > .row {
+  padding-left: 0;
+}
 
 .row-switch {
   flex: none;
@@ -1830,7 +1847,8 @@ p {
 }
 
 .plan-task-edit {
-  padding: 0 16px 16px;
+  grid-column: 2;
+  padding: 0 16px 16px 0;
 }
 
 .plan-task-edit .field-minutes {
@@ -1839,6 +1857,13 @@ p {
 
 .plan-task.left-out .row-title {
   color: var(--muted);
+}
+
+.reorder-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 4px 0;
 }
 
 .plan-left-out {

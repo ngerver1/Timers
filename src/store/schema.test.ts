@@ -226,6 +226,21 @@ describe('flows', () => {
     expect(teeth!.handsOnSec).not.toBe(60);
   });
 
+  it("follow a day's own order, with tasks added since at the end", () => {
+    const data = seedData();
+    const [teeth, coffee, breakfast] = data.tasks;
+    const weekend = {
+      id: 'w',
+      name: 'Weekend',
+      ending: 'done' as const,
+      items: [teeth!, coffee!].map((t) => ({ taskId: t.id, optional: false })),
+    };
+    const order = [coffee!.id, 'gone', teeth!.id];
+    const names = (extras: { taskId: string }[]) => dayTasks(data.tasks, weekend, { extras, order }).map((t) => t.name);
+    expect(names([])).toEqual(['Make coffee', 'Brush teeth']);
+    expect(names([{ taskId: breakfast!.id }])).toEqual(['Make coffee', 'Brush teeth', "Prepare dog's breakfast"]);
+  });
+
   it("merge one task's change into a day's, dropping a change that's back to nothing", () => {
     const changes = [
       { taskId: 'a', handsOnSec: 60 },
@@ -240,7 +255,7 @@ describe('flows', () => {
     expect(withChange([], 'c', { leftOut: true })).toEqual([{ taskId: 'c', leftOut: true }]);
   });
 
-  it("keep a day's extras and changes in backups, and read older plans as having none", () => {
+  it("keep a day's extras, changes and order in backups, and read older plans as having none", () => {
     const data = seedData();
     const flowId = data.flows[0]!.id;
     const oneOff = { id: 'p', name: 'Drop off parcel', handsOnSec: 600, waitSec: 0, after: [] };
@@ -250,9 +265,10 @@ describe('flows', () => {
       { taskId: data.tasks[1]!.id, name: 'Coffee', handsOnSec: 120 },
       { taskId: data.tasks[2]!.id, leftOut: true },
     ];
-    const kept = fromBackup(toBackup({ ...data, plans: [{ ...plan, extras, changes }] })).plans[0]!;
-    expect([kept.extras, kept.changes]).toEqual([extras, changes]);
+    const order = [data.tasks[2]!.id, data.tasks[1]!.id];
+    const kept = fromBackup(toBackup({ ...data, plans: [{ ...plan, extras, changes, order }] })).plans[0]!;
+    expect([kept.extras, kept.changes, kept.order]).toEqual([extras, changes, order]);
     const older = validateData({ ...data, plans: [plan] }).plans[0]!;
-    expect([older.extras, older.changes]).toEqual([[], []]);
+    expect([older.extras, older.changes, older.order]).toEqual([[], [], undefined]);
   });
 });

@@ -25,6 +25,8 @@ export interface Plan {
   extras: PlanExtra[];
   /** Tasks changed or left out for that day. */
   changes: PlanChange[];
+  /** That day's order of its tasks, if it was reordered; otherwise the flow's own, then the extras. */
+  order?: Id[];
   /** Which end is fixed: done by `time` (work back), or start at `time` (work forward). */
   mode: PlanMode;
   /** Local "HH:MM". */
@@ -214,6 +216,7 @@ function plan(v: unknown): Plan {
     // Plans saved before extras existed have none.
     extras: v.extras === undefined ? [] : arr(v.extras, 'plan tasks', extra),
     changes: v.changes === undefined ? [] : arr(v.changes, 'plan changes', change),
+    order: v.order === undefined ? undefined : strs(v.order, 'plan order'),
     mode: planMode(v.mode),
     time: optStr(v.time, 'plan time'),
     bufferMin: num(v.bufferMin, 'plan buffer'),

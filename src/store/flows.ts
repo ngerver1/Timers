@@ -28,13 +28,13 @@ export interface DayTask {
 
 /**
  * Every task in a day's plan, in order: the flow's own, then any added for the
- * day, with the day's changes applied. Extras already in the flow, or since
- * deleted, are left out.
+ * day (or the day's own order, if it was reordered), with the day's changes
+ * applied. Extras already in the flow, or since deleted, are left out.
  */
 export function planTasks(
   tasks: readonly TaskDef[],
   flow: Flow,
-  plan?: { extras?: readonly PlanExtra[]; changes?: readonly PlanChange[] },
+  plan?: { extras?: readonly PlanExtra[]; changes?: readonly PlanChange[]; order?: readonly Id[] },
 ): DayTask[] {
   const own = flowTasks(tasks, flow);
   const seen = new Set(own.map((t) => t.id));
@@ -46,7 +46,7 @@ export function planTasks(
     return [{ task: { ...def, optional: false }, added: true, oneOff: 'oneOff' in e }];
   });
   const changes = new Map((plan?.changes ?? []).map((c) => [c.taskId, c]));
-  return [...own.map((task) => ({ task, added: false, oneOff: false })), ...extras].map((d) => {
+  const list = [...own.map((task) => ({ task, added: false, oneOff: false })), ...extras].map((d) => {
     const c = changes.get(d.task.id);
     return {
       ...d,
@@ -55,6 +55,14 @@ export function planTasks(
       leftOut: c?.leftOut === true,
     };
   });
+  return plan?.order ? inOrder(list, (d) => d.task.id, plan.order) : list;
+}
+
+/** Items sorted into `order`. Any not in it, like a task added since, keep their order after those that are. */
+export function inOrder<T>(items: readonly T[], idOf: (item: T) => Id, order: readonly Id[]): T[] {
+  const rank = new Map(order.map((id, i) => [id, i]));
+  const at = (item: T) => rank.get(idOf(item)) ?? order.length;
+  return [...items].sort((a, b) => at(a) - at(b));
 }
 
 /** The tasks a day's plan will run, as the engine sees them: the ones not left out. */

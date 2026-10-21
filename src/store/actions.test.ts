@@ -11,6 +11,7 @@ import {
   discardRun,
   finishRun,
   moveInFlow,
+  orderFlow,
   removeFromFlow,
   replaceAll,
   savePlan,
@@ -159,6 +160,31 @@ describe('starting a run', () => {
     expect(tasks.find((t) => t.name === 'Brush teeth')?.handsOnSec).toBe(60);
     expect(tasks.some((t) => t.name === 'Make coffee')).toBe(false);
     expect(getData().tasks.find((t) => t.name === 'Brush teeth')?.handsOnSec).not.toBe(60);
+  });
+
+  it("runs today's order, and keeping it for every run reorders the flow", () => {
+    const flowIds = () => morning().items.map((i) => i.taskId);
+    const [first, second, ...rest] = flowIds();
+    const order = [second!, first!, ...rest];
+    savePlan({
+      date: dateKey(T0),
+      flowId: morning().id,
+      optionalOn: [],
+      extras: [],
+      changes: [],
+      order,
+      mode: 'doneBy',
+      bufferMin: 10,
+    });
+    startRun([], undefined, T0);
+    expect(
+      activeRun(getData())!
+        .tasks.slice(0, 2)
+        .map((t) => t.id),
+    ).toEqual([second, first]);
+    expect(flowIds()[0]).toBe(first);
+    orderFlow(morning().id, order);
+    expect(flowIds()).toEqual(order);
   });
 
   it('goes back to the flow that ran when it finishes, even after looking at another', () => {

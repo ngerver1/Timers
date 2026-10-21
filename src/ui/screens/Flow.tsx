@@ -1,3 +1,4 @@
+import { arrayMove } from '@dnd-kit/sortable';
 import { useMemo, useState, type ReactNode } from 'react';
 import { finishFrom, latestStart } from '../../engine/plan';
 import { activeTasks, closeOver, switchOff, switchOn } from '../../engine/routine';
@@ -15,6 +16,7 @@ import {
   editRunTask,
   finishRun,
   finishedRuns,
+  orderFlow,
   planFor,
   savePlan,
   saveTaskDef,
@@ -64,6 +66,7 @@ import {
   useWakeLock,
   type HeroMode,
 } from '../hooks';
+import { SortableList, useSortableRow } from '../sortable';
 
 export function FlowScreen() {
   const data = useData();
@@ -179,6 +182,8 @@ function StartView({ flow, now }: { flow: Flow; now: number }) {
   );
 }
 
+const sameOrder = (a: readonly Id[], b: readonly Id[]) => a.length === b.length && a.every((id, i) => id === b[i]);
+
 /** The day's plan, changed in place: its tasks, tasks added for the day, and the finish-by time. */
 function EditPlanSheet(props: {
   flow: Flow;
@@ -202,7 +207,15 @@ function EditPlanSheet(props: {
   const [minutes, setMinutes] = useState('5');
   const [status, setStatus] = useState('');
   const value = parseMinutes(minutes);
-  const inPlan = new Set(list.map((d) => d.task.id));
+  const ids = list.map((d) => d.task.id);
+  // Without today's order: the flow's own tasks, then the ones added for today.
+  const usual = planTasks(data.tasks, flow, { ...plan, order: undefined }).map((d) => d.task.id);
+  const reordered = !sameOrder(ids, usual);
+  // Tasks added for today aren't in the flow, so only the flow's own can be kept in a new order.
+  const own = new Set(flow.items.map((i) => i.taskId));
+  const ownOf = (order: Id[]) => order.filter((id) => own.has(id));
+  const flowReordered = !sameOrder(ownOf(ids), ownOf(usual));
+  const inPlan = new Set(ids);
   const available = data.tasks.filter((t) => !inPlan.has(t.id));
   const where = scope === 'today' ? 'for today' : `to ${flow.name}`;
   const toggleOpen = (id: Id) => {
@@ -236,6 +249,21 @@ function EditPlanSheet(props: {
     edit({ changes: withChange(plan.changes, d.task.id, { leftOut: out || undefined }) });
     done(`${d.task.name} ${out ? 'left out today' : 'put back'}.`);
   };
+  const reorder = (next: Id[]) => {
+    edit({ order: sameOrder(next, usual) ? undefined : next });
+    setStatus('');
+  };
+  const keepOrder = () => {
+    orderFlow(flow.id, ids);
+    // Today keeps its own order only if tasks added for today were moved in among the flow's.
+    const after = [...ownOf(ids), ...usual.filter((id) => !own.has(id))];
+    edit({ order: sameOrder(ids, after) ? undefined : ids });
+    setStatus('Order kept for every run.');
+  };
+  const resetOrder = () => {
+    edit({ order: undefined });
+    setStatus('Back to the usual order.');
+  };
   const remove = (d: DayTask) => {
     const idOf = (e: PlanExtra) => ('oneOff' in e ? e.oneOff.id : e.taskId);
     edit({
@@ -263,7 +291,8 @@ function EditPlanSheet(props: {
         {list.length > 0 && (
           <section>
             <h3 className="section-title">Tasks</h3>
-            <ul className="card list">
+            <p className="hint plan-hint">Drag to reorder for today. Tap a task to edit it.</p>
+            <SortableList ids={ids} onMove={(from, to) => reorder(arrayMove(ids, from, to))}>
               {list.map((d) => (
                 <PlanTaskRow
                   key={d.task.id}
@@ -288,7 +317,22 @@ function EditPlanSheet(props: {
                   )}
                 </PlanTaskRow>
               ))}
-            </ul>
+            </SortableList>
+            {reordered && (
+              <div className="reorder-bar">
+                <p className="muted">Reordered for today.</p>
+                <div className="action-row">
+                  {flowReordered && (
+                    <button type="button" className="btn btn-small" onClick={keepOrder}>
+                      Keep for every run
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-small" onClick={resetOrder}>
+                    Reset
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
         )}
 
@@ -399,16 +443,26 @@ function PlanTaskRow(props: {
 }) {
   const { item, open } = props;
   const { task } = item;
+  const { row, dragging, handle } = useSortableRow(task.id, task.name);
+  const dragged = dragging ? ' dragging' : '';
   if (item.leftOut) {
     return (
-      <li className="row plan-task left-out">
-        <div className="row-main">
-          <div className="row-title">{task.name}</div>
-          <div className="row-meta">left out today</div>
+      <li {...row} className={`plan-task left-out${dragged}`}>
+        {handle}
+        <div className="row">
+          <div className="row-main">
+            <div className="row-title">{task.name}</div>
+            <div className="row-meta">left out today</div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-small"
+            onClick={props.onPutBack}
+            aria-label={`Put back ${task.name}`}
+          >
+            Put back
+          </button>
         </div>
-        <button type="button" className="btn btn-small" onClick={props.onPutBack} aria-label={`Put back ${task.name}`}>
-          Put back
-        </button>
       </li>
     );
   }
@@ -417,7 +471,8 @@ function PlanTaskRow(props: {
     ? task.after.flatMap((id) => props.tasks.find((t) => t.id === id && t.optional)?.name ?? [])
     : [];
   return (
-    <li className={`plan-task${open ? ' open' : ''}`}>
+    <li {...row} className={`plan-task${open ? ' open' : ''}${dragged}`}>
+      {handle}
       <div className="row">
         <button
           type="button"

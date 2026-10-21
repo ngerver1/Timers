@@ -4,7 +4,7 @@ import { lastUndoable } from '../engine/run';
 import { addDays, dateKey, upcomingTime } from '../engine/time';
 import type { Ending, Flow, Id, Run, RunEvent, Task, TaskDef } from '../engine/types';
 import { forSchedule } from '../features';
-import { dayTasks, flowTasks } from './flows';
+import { dayTasks, flowTasks, inOrder } from './flows';
 import { newId, type Plan, type StoreData } from './schema';
 import { update } from './store';
 
@@ -81,6 +81,11 @@ export function moveInFlow(flowId: Id, from: number, to: number) {
     if (moved) items.splice(to, 0, moved);
     return { ...f, items };
   });
+}
+
+/** Puts a flow's tasks in this order, as when you keep a day's order for every run. */
+export function orderFlow(flowId: Id, ids: readonly Id[]) {
+  withFlow(flowId, (f) => ({ ...f, items: inOrder(f.items, (i) => i.taskId, ids) }));
 }
 
 // ---- Tasks ----
