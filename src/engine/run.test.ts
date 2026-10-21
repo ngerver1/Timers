@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { actualSeconds } from './learning';
 import { foldRun, lastUndoable, plannedFinish, project } from './run';
-import { add, at, done, editTask, makeRun, mins, skip, T0, task, undo } from './test-helpers';
+import { add, at, done, editTask, makeRun, mins, reorder, skip, T0, task, undo } from './test-helpers';
 import type { Run } from './types';
 
 // teeth 0–3, coffee 3–5 (ready at 9), dog's breakfast 5–8, walk 8–28.
@@ -195,6 +195,25 @@ describe('skip, one-offs and undo', () => {
   it('an edit can be undone', () => {
     const change = editTask('walk', 'Walk', 25, 1);
     const run = makeRun(basic, [change, undo(change, 2)]);
+    expect(outAt(run, 2)).toBe(28);
+  });
+
+  it('reordering keeps you on the task you are on, and the rest follow the new order', () => {
+    // On teeth, you put the walk first: the coffee brews later, so you finish later.
+    const run = makeRun(basic, [reorder(['walk', 'teeth', 'coffee', 'dogFood'], 1)]);
+    const p = project(run, at(1));
+    expect(p.current?.task.id).toBe('teeth');
+    expect(p.current?.start).toBe(T0);
+    expect(p.upcoming.map((s) => s.task.id)).toEqual(['teeth', 'walk', 'coffee', 'dogFood']);
+    expect(outAt(run, 1)).toBe(29);
+    const after = makeRun(basic, [reorder(['walk', 'teeth', 'coffee', 'dogFood'], 1), done('teeth', 3)]);
+    expect(project(after, at(3)).current?.task.id).toBe('walk');
+  });
+
+  it('a reorder can be undone', () => {
+    const change = reorder(['walk', 'teeth', 'coffee', 'dogFood'], 1);
+    const run = makeRun(basic, [change, undo(change, 2)]);
+    expect(project(run, at(2)).upcoming.map((s) => s.task.id)).toEqual(['teeth', 'coffee', 'dogFood', 'walk']);
     expect(outAt(run, 2)).toBe(28);
   });
 

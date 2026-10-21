@@ -51,6 +51,8 @@ export type RunEvent =
   | { id: Id; at: number; type: 'skip'; taskIds: Id[] }
   | { id: Id; at: number; type: 'add'; task: Task; position: 'next' | 'last' }
   | { id: Id; at: number; type: 'edit'; taskId: Id; name: string; handsOnSec: number }
+  /** A new priority order for the tasks still to do. */
+  | { id: Id; at: number; type: 'reorder'; taskIds: Id[] }
   | { id: Id; at: number; type: 'undo'; targetId: Id };
 
 /** One go at a flow, such as this morning's Wake up. */

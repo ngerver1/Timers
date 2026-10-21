@@ -1,10 +1,10 @@
 // Everything that changes the saved document.
-import { activeTasks, closeOver } from '../engine/routine';
+import { activeTasks, closeOver, inOrder } from '../engine/routine';
 import { lastUndoable } from '../engine/run';
 import { addDays, dateKey, upcomingTime } from '../engine/time';
 import type { Ending, Flow, Id, Run, RunEvent, Task, TaskDef } from '../engine/types';
 import { forSchedule } from '../features';
-import { dayTasks, flowTasks, inOrder } from './flows';
+import { dayTasks, flowTasks } from './flows';
 import { newId, type Plan, type StoreData } from './schema';
 import { update } from './store';
 
@@ -218,6 +218,11 @@ export function addOneOff(name: string, minutes: number, position: 'next' | 'las
     optional: false,
   };
   withActiveRun((run) => append(run, { id: newId(), at: now, type: 'add', task, position }));
+}
+
+/** A new priority order for the tasks still to do in this run. The task you're on stays current. */
+export function reorderRun(taskIds: Id[], now = Date.now()) {
+  withActiveRun((run) => append(run, { id: newId(), at: now, type: 'reorder', taskIds }));
 }
 
 /** Fixes a task's details for this run only; the task list is changed separately. */

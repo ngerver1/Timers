@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { routineLength } from '../engine/plan';
 import { activeTasks } from '../engine/routine';
-import { add, done, editTask, makeRun, MIN, skip, task, undo } from '../engine/test-helpers';
+import { add, done, editTask, makeRun, MIN, reorder, skip, task, undo } from '../engine/test-helpers';
 import { dayTasks, flowTasks, flowsUsing, planTasks, ruleGraph, withChange } from './flows';
 import { fromBackup, seedData, toBackup, validateData } from './schema';
 
@@ -39,7 +39,14 @@ describe('store schema', () => {
     data.runs.push({
       ...makeRun(
         [task('teeth', 3)],
-        [tap, undo(tap, 4), skip(['teeth'], 5), add(task('keys', 1), 'last', 6), editTask('keys', 'Find keys', 2, 7)],
+        [
+          tap,
+          undo(tap, 4),
+          skip(['teeth'], 5),
+          add(task('keys', 1), 'last', 6),
+          editTask('keys', 'Find keys', 2, 7),
+          reorder(['keys', 'teeth'], 8),
+        ],
         60,
       ),
       finishedAt: 1,

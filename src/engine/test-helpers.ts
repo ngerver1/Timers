@@ -58,6 +58,12 @@ export const editTask = (taskId: string, name: string, minutes: number, min: num
   name,
   handsOnSec: minutes * 60,
 });
+export const reorder = (taskIds: string[], min: number): RunEvent => ({
+  id: id(),
+  at: at(min),
+  type: 'reorder',
+  taskIds,
+});
 export const undo = (target: RunEvent, min: number): RunEvent => ({
   id: id(),
   at: at(min),

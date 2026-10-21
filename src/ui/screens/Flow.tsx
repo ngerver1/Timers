@@ -18,6 +18,7 @@ import {
   finishedRuns,
   orderFlow,
   planFor,
+  reorderRun,
   savePlan,
   saveTaskDef,
   saveTaskInFlow,
@@ -72,7 +73,8 @@ export function FlowScreen() {
   const data = useData();
   const now = useNow(1000);
   const run = activeRun(data);
-  if (run) return <RunningView run={run} now={now} />;
+  // The clock ticks once a second, so a tap can be a moment newer than it. Never show the run from before it.
+  if (run) return <RunningView run={run} now={Math.max(now, run.startedAt, run.events.at(-1)?.at ?? 0)} />;
   const flow = activeFlow(data);
   return <StartView key={`${dateKey(now)}-${flow.id}`} flow={flow} now={now} />;
 }
@@ -709,6 +711,10 @@ function RunningView({ run, now }: { run: Run; now: number }) {
   const p = projectState(state, now);
   const suggestion = run.finishBy !== undefined ? suggestDrops(state, now, run.finishBy) : undefined;
   const later = p.current ? p.upcoming.slice(1) : p.upcoming;
+  const laterIds = later.map((s) => s.task.id);
+  // Drag what's up next into a new order; the task you're on stays first.
+  const reorder = (from: number, to: number) =>
+    reorderRun([...(p.current ? [p.current.task.id] : []), ...arrayMove(laterIds, from, to)]);
   const stale = now - run.startedAt > 12 * 3_600_000;
   const w = wording;
 
@@ -755,11 +761,11 @@ function RunningView({ run, now }: { run: Run; now: number }) {
         {later.length > 0 && (
           <section>
             <h2 className="section-title">Up next</h2>
-            <ul className="card list">
+            <SortableList ids={laterIds} onMove={reorder}>
               {later.map((s) => (
                 <UpcomingRow key={s.task.id} slot={s} onEdit={() => setEditing(s.task)} />
               ))}
-            </ul>
+            </SortableList>
           </section>
         )}
 
@@ -954,8 +960,10 @@ function TaskTimer({ slot, now }: { slot: Slot; now: number }) {
 }
 
 function UpcomingRow({ slot, onEdit }: { slot: Slot; onEdit: () => void }) {
+  const { row, dragging, handle } = useSortableRow(slot.task.id, slot.task.name);
   return (
-    <li className="row">
+    <li {...row} className={`row upcoming-row${dragging ? ' dragging' : ''}`}>
+      {handle}
       <button type="button" className="row-main row-button" onClick={onEdit} aria-label={`Edit ${slot.task.name}`}>
         <span className="row-title">{slot.task.name}</span>
         <span className="row-meta">

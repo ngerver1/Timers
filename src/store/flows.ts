@@ -1,6 +1,6 @@
 // Turning the shared task list and a flow into what the engine works with.
 import { finishFrom } from '../engine/plan';
-import { activeTasks } from '../engine/routine';
+import { activeTasks, inOrder } from '../engine/routine';
 import { atTime, ceilMinute, toHhmm } from '../engine/time';
 import type { Flow, Id, PlanMode, Task, TaskDef } from '../engine/types';
 import { forSchedule } from '../features';
@@ -56,13 +56,6 @@ export function planTasks(
     };
   });
   return plan?.order ? inOrder(list, (d) => d.task.id, plan.order) : list;
-}
-
-/** Items sorted into `order`. Any not in it, like a task added since, keep their order after those that are. */
-export function inOrder<T>(items: readonly T[], idOf: (item: T) => Id, order: readonly Id[]): T[] {
-  const rank = new Map(order.map((id, i) => [id, i]));
-  const at = (item: T) => rank.get(idOf(item)) ?? order.length;
-  return [...items].sort((a, b) => at(a) - at(b));
 }
 
 /** The tasks a day's plan will run, as the engine sees them: the ones not left out. */

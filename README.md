@@ -39,6 +39,8 @@ uses it. A flow is one of two kinds:
   - one-off tasks, and **Finish** to finish and save.
   - Tap any task in Up next (or Edit on the current one) to fix its name or minutes for this run, and optionally for
     next time too.
+  - Drag a task in Up next by its handle to change the order for this run. The task you're on stays current, the
+    finish time updates, and Undo puts the order back.
 
   The clock and current task stay pinned at the top and slim down while you scroll the list; scroll up a little and
   they expand again. The screen stays awake.

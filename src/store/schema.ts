@@ -142,6 +142,8 @@ function event(v: unknown): RunEvent {
       return { ...base, type: 'add', task: task(v.task), position: v.position === 'last' ? 'last' : 'next' };
     case 'undo':
       return { ...base, type: 'undo', targetId: str(v.targetId, 'event target') };
+    case 'reorder':
+      return { ...base, type: 'reorder', taskIds: strs(v.taskIds, 'event tasks') };
     case 'edit':
       return {
         ...base,

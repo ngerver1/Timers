@@ -47,6 +47,13 @@ export function activeTasks(tasks: readonly Task[], on: ReadonlySet<Id>): Task[]
   return active.map((t) => ({ ...t, after: t.after.filter((d) => ids.has(d)) }));
 }
 
+/** Items sorted into `order`. Any not in it, like a task added since, keep their order after those that are. */
+export function inOrder<T>(items: readonly T[], idOf: (item: T) => Id, order: readonly Id[]): T[] {
+  const rank = new Map(order.map((id, i) => [id, i]));
+  const at = (item: T) => rank.get(idOf(item)) ?? order.length;
+  return [...items].sort((a, b) => at(a) - at(b));
+}
+
 /** Would making `taskId` wait for `depId` create a loop of rules? */
 export function createsCycle(tasks: readonly Task[], taskId: Id, depId: Id): boolean {
   const map = byId(tasks);

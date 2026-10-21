@@ -1,5 +1,6 @@
 // A morning is a log of taps. Folding the log says what's done and when you were
 // last free; projecting from the clock gives "now + what's left".
+import { inOrder } from './routine';
 import { simulate, type Slot } from './simulate';
 import type { Id, Run, RunEvent, Task } from './types';
 
@@ -86,6 +87,8 @@ export function foldRun(run: Run): RunState {
       applyAdd(state, e.task, e.position, e.at);
     } else if (e.type === 'edit') {
       applyEdit(state, e);
+    } else if (e.type === 'reorder') {
+      applyReorder(state, e.taskIds, e.at);
     }
   }
   return state;
@@ -158,6 +161,13 @@ function applyAdd(state: RunState, task: Task, position: 'next' | 'last', at: nu
     state.freeAt = at;
     state.pinned = undefined;
   }
+}
+
+/** Puts the tasks still to do in a new priority order. The task you're on stays current. */
+function applyReorder(state: RunState, taskIds: readonly Id[], at: number): void {
+  const { current } = projectState(state, at);
+  state.tasks = inOrder(state.tasks, (t) => t.id, taskIds);
+  if (current) state.pinned = { id: current.task.id, start: current.start };
 }
 
 /** Fixes a task's name or minutes for the rest of this morning. */

@@ -910,7 +910,8 @@ p {
 }
 
 .task-row.dragging,
-.plan-task.dragging {
+.plan-task.dragging,
+.upcoming-row.dragging {
   z-index: 2;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
 }
@@ -1150,6 +1151,13 @@ p {
 }
 
 /* ---- Editable rows ---- */
+
+/* Up next while a flow runs: drag to reorder, tap to edit. */
+.upcoming-row {
+  padding-left: 0;
+  background: var(--surface);
+  position: relative;
+}
 
 .task-main-text {
   flex: 1;
