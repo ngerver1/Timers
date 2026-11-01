@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MIN, T0, task } from '../engine/test-helpers';
 import { addDays, atTime, dateKey } from '../engine/time';
 import {
@@ -111,6 +111,10 @@ describe('flows', () => {
 });
 
 describe('starting a run', () => {
+  // These save plans for T0's day, and plans more than a week old are dropped, so keep the clock on T0.
+  beforeEach(() => vi.useFakeTimers({ now: T0, toFake: ['Date'] }));
+  afterEach(() => vi.useRealTimers());
+
   it('runs the picked flow: its name, ending and tasks', () => {
     const dinner = createFlow('Dinner', 'done');
     addToFlow(dinner, idOf('Make coffee'));
