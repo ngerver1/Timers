@@ -200,12 +200,13 @@ function withActiveRun(change: (run: Run) => Run) {
 
 const append = (run: Run, event: RunEvent): Run => ({ ...run, events: [...run.events, event] });
 
-export function tapDone(taskId: Id, now = Date.now()) {
-  withActiveRun((run) => append(run, { id: newId(), at: now, type: 'done', taskId }));
+// `id` is for taps from the watch, which bring their own (so a resent tap is recognised).
+export function tapDone(taskId: Id, now = Date.now(), id = newId()) {
+  withActiveRun((run) => append(run, { id, at: now, type: 'done', taskId }));
 }
 
-export function skipTasks(taskIds: Id[], now = Date.now()) {
-  withActiveRun((run) => append(run, { id: newId(), at: now, type: 'skip', taskIds }));
+export function skipTasks(taskIds: Id[], now = Date.now(), id = newId()) {
+  withActiveRun((run) => append(run, { id, at: now, type: 'skip', taskIds }));
 }
 
 export function addOneOff(name: string, minutes: number, position: 'next' | 'last', now = Date.now()) {
@@ -230,10 +231,10 @@ export function editRunTask(taskId: Id, name: string, handsOnSec: number, now = 
   withActiveRun((run) => append(run, { id: newId(), at: now, type: 'edit', taskId, name, handsOnSec }));
 }
 
-export function undoLast(now = Date.now()) {
+export function undoLast(now = Date.now(), id = newId()) {
   withActiveRun((run) => {
     const target = lastUndoable(run);
-    return target ? append(run, { id: newId(), at: now, type: 'undo', targetId: target.id }) : run;
+    return target ? append(run, { id, at: now, type: 'undo', targetId: target.id }) : run;
   });
 }
 

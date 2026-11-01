@@ -205,3 +205,33 @@ three changes above.
 - The owner is in Brisbane (Australia/Brisbane time zone). Display times in the device's local time, 12-hour with
   am/pm, matching the phone app.
 - Ask the owner before: changing the app id, adding any cloud service, or changing how runs are stored.
+
+## Decisions (agreed with the owner, 1 Nov 2026)
+
+- **Releasing**: a PR to `main` after each milestone, once CI is green. Every step leaves the PWA unchanged in a
+  browser: `startWatchBridge()` returns straight away unless the `WatchBridge` Capacitor plugin is present.
+- **Phone app web code**: bundled in the APK (not loading the Pages site), so the phone app and watch app are
+  versioned and shipped together and work offline.
+- **App id**: `io.github.ngerver1.outthedoor` for both apps.
+- **Builds**: the owner is new to Android builds and will run them with Claude in a local session. The README
+  section (milestone 6) should be written as steps that session can follow.
+- **Versions**: `package.json` `version` stays the one version number; bump the minor version when watch work
+  ships. Android `versionName` comes from it. Phone and watch `versionCode`s must differ (same app id): phone `N`,
+  watch `N + 1`.
+- **Protocol versioning**: snapshots and commands carry `v` (`WATCH_PROTOCOL` in `src/engine/watch.ts`). The phone
+  ignores commands with a newer `v`. The watch shows "Update the watch app" for a snapshot with a newer `v`. Bump
+  it only for changes an older app can't read; adding an optional field doesn't need a bump.
+- **Storage unchanged**: `STORE_VERSION` stays 2. Which watch commands have been handled is kept under its own key,
+  `outTheDoor.watch` (not in runs or backups). Done, Skip and Undo from the watch also use the `cmdId` as the run
+  event's `id`, so a resent tap is still recognised if the app stopped before that key was saved.
+- **Acknowledging taps**: the snapshot has `ackCmdId`, the last watch command the phone has dealt with for the run,
+  applied or not (an Undo with nothing to undo adds no event, so `lastEventId` alone can't confirm it). The watch
+  drops that command and everything queued before it.
+- **Tap times**: `tapTime()` keeps a watch tap between the last event already in the log (so the log stays in
+  time order when the phone was also tapped meanwhile) and the phone's now.
+- **Native plugin API** (`WatchBridgePlugin` in `src/platform/watch.ts`): `publishSnapshot({ json })`,
+  `pendingCommands()` → `{ commands: [{ seq, json }] }`, `ackCommands({ upTo })`, and a `command` event. Commands
+  stay in the native queue until the web app has applied them and acked. The foreground-service notification can
+  be driven from the snapshot on the native side, with no extra API.
+- **Build environment**: this cloud environment's network policy blocks `dl.google.com` (the Android SDK), so the
+  Android code can't be compiled here until the owner allows that host.
